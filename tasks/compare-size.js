@@ -57,6 +57,10 @@ module.exports = function(grunt) {
           diff = "+" + diff;
         }
 
+        if ( !diff ) {
+          diff = 0;
+        }
+
         grunt.log.writetableln([ 12, 12, 30 ], [
           utils._.lpad( sizes[ key ], 10 ) ,
           utils._.lpad( diff ? "(" + diff + ")" : "(-)", 10 )[ diff[0] === "+" ? "yellow" : "red" ],
