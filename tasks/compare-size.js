@@ -41,7 +41,7 @@ module.exports = function(grunt) {
 
     // Obtain the current branch and continue...
     grunt.helper( "git_current_branch", function( err, branch ) {
-      var key, diff;
+      var key, diff, color;
 
       // Derived and adapted from Corey Frang's original `sizer`
       grunt.log.writeln( "Sizes - compared to master" );
@@ -55,15 +55,21 @@ module.exports = function(grunt) {
 
         if ( diff > 0 ) {
           diff = "+" + diff;
+          color = "red";
+        }
+
+        if ( diff < 0 ) {
+          color = "green";
         }
 
         if ( !diff ) {
           diff = 0;
+          color = "grey";
         }
 
         grunt.log.writetableln([ 12, 12, 30 ], [
           utils._.lpad( sizes[ key ], 10 ) ,
-          utils._.lpad( diff ? "(" + diff + ")" : "(-)", 10 )[ diff[0] === "+" ? "yellow" : "red" ],
+          utils._.lpad( diff ? "(" + diff + ")" : "(-)", 10 )[ color ],
           key
         ]);
       }
