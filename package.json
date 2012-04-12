@@ -1,0 +1,38 @@
+{
+  "name": "grunt-compare-size",
+  "description": "Compare file sizes on this branch to master",
+  "version": "0.1.0",
+  "homepage": "https://github.com/rwldrn/grunt-compare-size",
+  "author": {
+    "name": "Rick Waldron <waldron.rick@gmail.com>",
+    "email": "waldron.rick@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/rwldrn/grunt-compare-size.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rwldrn/grunt-compare-size/issues"
+  },
+  "licenses": [
+    {
+      "type": "MIT",
+      "url": "https://github.com/rwldrn/grunt-compare-size/blob/master/LICENSE-MIT"
+    }
+  ],
+  "main": "grunt.js",
+  "bin": "bin/grunt-compare-size",
+  "engines": {
+    "node": "*"
+  },
+  "scripts": {
+    "test": "grunt test"
+  },
+  "dependencies": {
+    "grunt": "~0.3.5"
+  },
+  "devDependencies": {
+    "grunt": "~0.3.5"
+  },
+  "keywords": []
+}
