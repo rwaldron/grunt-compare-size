@@ -6,15 +6,15 @@ module.exports = function(grunt) {
     pkg: "<json:package.json>",
     compare_size: {
       files: [
-        "dist/jquery.js",
-        "dist/jquery.min.js"
+        "dist/source.js",
+        "dist/source.min.js"
       ]
     },
     test: {
-      files: ["test/**/*.js"]
+      files: [ "test/**/*.js" ]
     },
     lint: {
-      files: ["grunt.js", "tasks/**/*.js", "test/**/*.js"]
+      files: [ "grunt.js", "tasks/**/*.js", "test/**/*.js" ]
     },
     watch: {
       files: "<config:lint.files>",

@@ -6,9 +6,6 @@
  * Licensed under the MIT license.
  */
 
-// TODO: Allow for comparing to arbitrary checkouts/branches etc.
-
-
 module.exports = function(grunt) {
   // Grunt utilities.
   var task = grunt.task;
@@ -25,7 +22,7 @@ module.exports = function(grunt) {
   grunt.registerMultiTask( "compare_size", "Compare size of this branch to master", function() {
     var files = file.expandFiles( this.file.src ),
         done = this.async(),
-        sizecache = "dist/.sizecache.json",
+        sizecache = __dirname + "/build/.sizecache.json",
         sources = {
           min: file.read( files[1] ),
           max: file.read( files[0] )
@@ -52,14 +49,13 @@ module.exports = function(grunt) {
 
       for ( key in sizes ) {
         diff = oldsizes[ key ] && ( sizes[ key ] - oldsizes[ key ] );
-
         if ( diff > 0 ) {
           diff = "+" + diff;
         }
 
-        grunt.log.writetableln([ 12, 12, 30 ], [
-          utils._.lpad( sizes[ key ], 10 ) ,
-          utils._.lpad( diff ? "(" + diff + ")" : "(-)", 10 )[ diff[0] === "+" ? "yellow" : "red" ],
+        grunt.log.writetableln([ 8, 10, 30 ], [
+          utils._.lpad( sizes[ key ], 8 ) ,
+          utils._.lpad( diff ? "(" + diff + ")" : "(-)", 8 )[ diff[0] === "+" ? "yellow" : "red" ],
           key
         ]);
       }
@@ -79,10 +75,10 @@ module.exports = function(grunt) {
     }
   });
 
-  grunt.registerHelper( "git_current_branch", function(done) {
+  grunt.registerHelper("git_current_branch", function(done) {
     grunt.utils.spawn({
       cmd: "git",
-      args: [ "branch", "--no-color" ]
+      args: ["branch", "--no-color"]
     }, function(err, result) {
       var branch;
 

@@ -1,8 +1,9 @@
 # grunt-compare-size
 
-Compare size of t
+Compare file sizes on this branch to master
 
 ## Getting Started
+
 Install this grunt plugin with: `npm install -g grunt-compare-size`
 
 Then add this to your project's `grunt.js` gruntfile:
@@ -12,14 +13,19 @@ task.loadNpmTasks('grunt-compare-size');
 ```
 
 ## Documentation
-_(Coming soon)_
 
-## Contributing
-In lieu of a formal styleguide, take care to maintain the existing coding style. Add unit tests for any new or changed functionality. Lint and test your code using [grunt](https://github.com/cowboy/grunt).
+Run tests like:
 
-## Release History
-_(Nothing yet)_
+``` bash
+
+# local grunt install
+$ npm install grunt
+
+$ ./node_modules/.bin/grunt test
+
+```
+
 
 ## License
-Copyright (c) 2012 Rick Waldron <waldron.rick@gmail.com>  
+Copyright (c) 2012 Rick Waldron <waldron.rick@gmail.com>, Corey Frang <gnarf@gnarf.net>
 Licensed under the MIT license.
