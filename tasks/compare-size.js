@@ -30,6 +30,7 @@ module.exports = function(grunt) {
           min: file.read( files[1] ),
           max: file.read( files[0] )
         },
+        firstuse = false,
         oldsizes = {},
         sizes = {};
 
@@ -38,6 +39,12 @@ module.exports = function(grunt) {
     } catch ( e ) {
       oldsizes = {};
     }
+
+    Object.keys(oldsizes).forEach(function( key ) {
+      if ( oldsizes[key] === 0 ) {
+        firstuse = true;
+      }
+    });
 
     // Obtain the current branch and continue...
     grunt.helper( "git_current_branch", function( err, branch ) {
@@ -74,7 +81,7 @@ module.exports = function(grunt) {
         ]);
       }
 
-      if ( branch === "master" ) {
+      if ( branch === "master" || firstuse ) {
         // If master, write to file - this makes it easier to compare
         // the size of your current code state to the master branch,
         // without returning to the master to reset the cache

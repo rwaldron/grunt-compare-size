@@ -1,7 +1,8 @@
 var grunt = require("grunt"),
     file = require("fs"),
     sizecache = "./dist/.sizecache.json",
-    dummy = { "dist/source.js": 0, "dist/source.min.js": 0, "dist/source.min.js.gz": 0 };
+    dummy = { "dist/source.js": 0, "dist/source.min.js": 0, "dist/source.min.js.gz": 0 },
+    saved = grunt.file.read(sizecache);
 
 // Set .sizecache.json entries to zero
 grunt.file.write(
