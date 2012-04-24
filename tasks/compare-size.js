@@ -74,7 +74,7 @@ module.exports = function(grunt) {
           color = "grey";
         }
 
-        grunt.log.writetableln([ 12, 12, 30 ], [
+        grunt.log.writetableln([ 12, 12, 56 ], [
           utils._.lpad( sizes[ key ], 10 ) ,
           utils._.lpad( diff ? "(" + diff + ")" : "(-)", 10 )[ color ],
           key
