@@ -1,8 +1,12 @@
 var grunt = require("grunt"),
     file = require("fs"),
+    path = require("path"),
     sizecache = "./dist/.sizecache.json",
     dummy = { "dist/source.js": 0, "dist/source.min.js": 0, "dist/source.min.js.gz": 0 },
     saved = grunt.file.read(sizecache);
+
+// console.log( path.existsSync(sizecache) );
+
 
 // Set .sizecache.json entries to zero
 grunt.file.write(
@@ -62,6 +66,36 @@ exports["compare_size"] = {
         });
       }
       test.done();
+    });
+  },
+
+  "reboot": function( test ) {
+
+    // Delete the sizecache file
+    // Retry the task
+    file.unlink(sizecache, function() {
+      grunt.utils.spawn({
+        cmd: "grunt",
+        args: [ "compare_size" ]
+      }, function( err, result ) {
+        var output = result.toString(),
+            lines = output.split("\n").map(function( val ) { return val.trim(); });
+
+        console.log( "\n\nOUTPUT:\n" + output );
+
+        test.ok( /Sizes - compared to/.test(output), "Sizes - compared to" );
+
+        lines.forEach(function( line ) {
+          if ( /source/.test(line) ) {
+            test.equal( typeof +line.split(/\s+/g)[0], "number", "Expecting numeric sizes" );
+          }
+        });
+
+        Object.keys( dummy ).forEach(function( key ) {
+          test.ok( (new RegExp( key )).test( output ), "Displayed file name: " + key );
+        });
+        test.done();
+      });
     });
   }
 };

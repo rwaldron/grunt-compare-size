@@ -7,7 +7,7 @@
  */
 
 // TODO: Allow for comparing to arbitrary checkouts/branches etc.
-
+var path = require("path");
 
 module.exports = function(grunt) {
   // Grunt utilities.
@@ -20,6 +20,12 @@ module.exports = function(grunt) {
   var option = grunt.option;
   var config = grunt.config;
   var template = grunt.template;
+  var sizecache = "dist/.sizecache.json";
+
+
+  if ( !path.existsSync("dist/.sizecache.json") ) {
+    file.write( sizecache, "" );
+  }
 
   // Compare size to master
   grunt.registerMultiTask( "compare_size", "Compare size of this branch to master", function() {
@@ -35,7 +41,11 @@ module.exports = function(grunt) {
         sizes = {};
 
     try {
-      oldsizes = JSON.parse( file.read(sizecache) );
+      if ( path.existsSync(sizecache) ) {
+        oldsizes = JSON.parse( file.read(sizecache) );
+      } else {
+        oldsizes = {};
+      }
     } catch ( e ) {
       oldsizes = {};
     }
