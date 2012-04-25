@@ -23,7 +23,7 @@ module.exports = function(grunt) {
   var sizecache = "dist/.sizecache.json";
 
 
-  if ( !path.existsSync("dist/.sizecache.json") ) {
+  if ( !path.existsSync(sizecache) ) {
     file.write( sizecache, "" );
   }
 
@@ -31,7 +31,6 @@ module.exports = function(grunt) {
   grunt.registerMultiTask( "compare_size", "Compare size of this branch to master", function() {
     var files = file.expandFiles( this.file.src ),
         done = this.async(),
-        sizecache = "dist/.sizecache.json",
         sources = {
           min: file.read( files[1] ),
           max: file.read( files[0] )
@@ -43,12 +42,12 @@ module.exports = function(grunt) {
     try {
       if ( path.existsSync(sizecache) ) {
         oldsizes = JSON.parse( file.read(sizecache) );
-      } else {
-        oldsizes = {};
       }
-    } catch ( e ) {
-      oldsizes = {};
-    }
+    } catch ( e ) {}
+
+    // `oldsizes` will now be one of:
+    // {}, empty
+    // { file: size [,...] }
 
     Object.keys(oldsizes).forEach(function( key ) {
       if ( oldsizes[key] === 0 ) {
