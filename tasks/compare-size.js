@@ -58,6 +58,11 @@ module.exports = function(grunt) {
     // Obtain the current branch and continue...
     grunt.helper( "git_current_branch", function( err, branch ) {
       var key, diff, color;
+      
+      if ( err ) {
+        grunt.log.error( err );
+        return false;
+      }
 
       // Derived and adapted from Corey Frang's original `sizer`
       grunt.log.writeln( "Sizes - compared to master" );
@@ -106,15 +111,23 @@ module.exports = function(grunt) {
   });
 
   grunt.registerHelper( "git_current_branch", function(done) {
+    grunt.verbose.write( "Running `git branch` command..." );
     grunt.utils.spawn({
       cmd: "git",
       args: [ "branch", "--no-color" ]
     }, function(err, result) {
       var branch;
 
+      if ( err ) {
+        grunt.verbose.error();
+        done( err );
+        return;
+      }
+
       result.split("\n").forEach(function(branch) {
         var matches = /^\* (.*)/.exec( branch );
         if ( matches != null && matches.length && matches[ 1 ] ) {
+          grunt.verbose.ok();
           done( null, matches[ 1 ] );
         }
       });
