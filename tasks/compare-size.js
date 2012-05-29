@@ -6,8 +6,8 @@
  * Licensed under the MIT license.
  */
 
-// TODO: Allow for comparing to arbitrary checkouts/branches etc.
-var path = require("path");
+var path = require("path"),
+    fs = require("fs");
 
 module.exports = function(grunt) {
   // Grunt utilities.
@@ -22,86 +22,80 @@ module.exports = function(grunt) {
   var template = grunt.template;
   var sizecache = "dist/.sizecache.json";
 
-
-  if ( !path.existsSync(sizecache) ) {
-    file.write( sizecache, "" );
-  }
-
-  // Compare size to master
-  grunt.registerMultiTask( "compare_size", "Compare size of this branch to master", function() {
-    var files = file.expandFiles( this.file.src ),
-        done = this.async(),
-        sources = {
-          min: file.read( files[1] ),
-          max: file.read( files[0] )
-        },
-        firstuse = false,
-        oldsizes = {},
-        sizes = {};
-
-    try {
-      if ( path.existsSync(sizecache) ) {
-        oldsizes = JSON.parse( file.read(sizecache) );
-      }
-    } catch ( e ) {}
-
-    // `oldsizes` will now be one of:
-    // {}, empty
-    // { file: size [,...] }
-
-    Object.keys(oldsizes).forEach(function( key ) {
-      if ( oldsizes[key] === 0 ) {
-        firstuse = true;
-      }
-    });
+  // Compare size to saved sizes
+  // Derived and adapted from Corey Frang's original `sizer`
+  grunt.registerTask( "compare_size", "Compare working size to saved sizes", function() {
+    var done = this.async(),
+        newsizes = grunt.helper( "sizes", this ),
+        files = Object.keys( newsizes ),
+        cache = grunt.helper( "get_cache", sizecache ),
+        tips = cache[""].tips,
+        labels = grunt.helper( "sorted_labels", cache );
 
     // Obtain the current branch and continue...
-    grunt.helper( "git_current_branch", function( err, branch ) {
-      var key, diff, color;
-      
+    grunt.helper( "git_status", function( err, status ) {
       if ( err ) {
         grunt.log.error( err );
-        return false;
+        status = {};
       }
 
-      // Derived and adapted from Corey Frang's original `sizer`
-      grunt.log.writeln( "Sizes - compared to master" );
+      labels.forEach(function( label, index ) {
+        var key, diff, color,
+            oldsizes = cache[ label ];
 
-      sizes[ files[0] ] = sources.max.length;
-      sizes[ files[1] ] = sources.min.length;
-      sizes[ files[1] + ".gz" ] = grunt.helper( "gzip", sources.min ).length;
-
-      for ( key in sizes ) {
-        diff = oldsizes[ key ] && ( sizes[ key ] - oldsizes[ key ] );
-
-        if ( diff > 0 ) {
-          diff = "+" + diff;
-          color = "red";
+        // Skip metadata key
+        if ( label === "" ) {
+          return;
         }
 
-        if ( diff < 0 ) {
-          color = "green";
+        // Output header line
+	grunt.log.write( !oldsizes ? "Sizes" : "Sizes - compared to " + ( label.charAt( 0 ) === " " ?
+          label.substring( 1 ) :
+          label ) );
+        if ( label in tips ) {
+          grunt.log.write( " " + ( "@ " + tips[ label ] )[ "grey" ] ); 
+        }
+        grunt.log.writeln("");
+
+        // Output size comparisons
+        for ( key in newsizes ) {
+          diff = oldsizes && oldsizes[ key ] && ( newsizes[ key ] - oldsizes[ key ] );
+
+          if ( diff < 0 ) {
+            color = "green";
+          } else if ( diff > 0 ) {
+            diff = "+" + diff;
+            color = "red";
+          } else {
+            diff = "-";
+            color = "grey";
+          }
+
+          grunt.log.writetableln([ 12, 12, 55 ], [
+            utils._.lpad( newsizes[ key ], 10 ) ,
+            utils._.lpad( "(" + diff + ")", 10 )[ color ],
+            key
+          ]);
         }
 
-        if ( !diff ) {
-          diff = 0;
-          color = "grey";
+        // Output blank line for following comparisons
+        if ( labels.length > index + 1 ) {
+          grunt.log.writeln("");
         }
+      });
 
-        grunt.log.writetableln([ 12, 12, 55 ], [
-          utils._.lpad( sizes[ key ], 10 ) ,
-          utils._.lpad( diff ? "(" + diff + ")" : "(-)", 10 )[ color ],
-          key
-        ]);
+      // Update "last run" sizes
+      cache[" last run"] = newsizes;
+
+      // Remember if we're at a branch tip and the branch name is an available key
+      if ( status.branch && !status.changed && ( status.branch in tips || !cache[ status.branch ] ) ) {
+        tips[ status.branch ] = status.head;
+        cache[ status.branch ] = newsizes;
+        grunt.log.writeln( "\nSaved as: " + status.branch );
       }
 
-      if ( branch === "master" || firstuse ) {
-        // If master, write to file - this makes it easier to compare
-        // the size of your current code state to the master branch,
-        // without returning to the master to reset the cache
-        file.write( sizecache, JSON.stringify(sizes) );
-      }
-      done();
+      // Write to file
+      file.write( sizecache, JSON.stringify( cache ) );
     });
 
     // Fail task if errors were logged.
@@ -110,27 +104,161 @@ module.exports = function(grunt) {
     }
   });
 
-  grunt.registerHelper( "git_current_branch", function(done) {
+  // List saved sizes
+  grunt.registerTask( "compare_size_list", "List saved sizes", function() {
+    var cache = grunt.helper( "get_cache", sizecache ),
+        tips = cache[""].tips;
+
+    grunt.helper( "sorted_labels", cache ).forEach(function( label ) {
+      // Skip the special labels
+      if ( label && label.charAt( 0 ) !== " " ) {
+        grunt.log.write( label );
+        if ( label in tips ) {
+          grunt.log.write( " " + ( "@ " + tips[ label ] )[ "grey" ] ); 
+        }
+        grunt.log.writeln("");
+      }
+    });
+  });
+
+  // Add custom label
+  grunt.registerTask( "compare_size_add", "Add to saved sizes", function() {
+    var label,
+        cache = grunt.helper( "get_cache", sizecache );
+
+    if ( !cache[" last run"] ) {
+      grunt.log.error("No size data found");
+      return false;
+    }
+
+    // Store last run sizes under each label, clearing them as branch heads
+    for ( label in this.flags ) {
+      if ( label in cache[""].tips ) {
+        delete cache[""].tips[ label ];
+	grunt.log.write("(removed branch data) ");
+      }
+      cache[ label ] = cache[" last run"];
+      grunt.log.writeln( "Last run saved as: " + label );
+    }
+
+    file.write( sizecache, JSON.stringify( cache ) );
+  });
+
+  // Remove custom label
+  grunt.registerTask( "compare_size_remove", "Remove from saved sizes", function() {
+    var label,
+        cache = grunt.helper( "get_cache", sizecache );
+
+    for ( label in this.flags ) {
+      delete cache[""].tips[ label ];
+      delete cache[ label ];
+      grunt.log.writeln( "Removed: " + label );
+    }
+
+    file.write( sizecache, JSON.stringify( cache ) );
+  });
+
+  // Empty size cache
+  grunt.registerTask( "compare_size_empty", "Clear all saved sizes", function() {
+    if ( path.existsSync( sizecache ) ) {
+      fs.unlinkSync( sizecache );
+    }
+  });
+
+  // Label sequence helper
+  grunt.registerHelper( "sorted_labels", function( cache ) {
+    var tips = cache[""].tips;
+
+    // Sort labels: metadata, then branch tips by first add, then user entries by first add, then last run
+    // Then return without metadata
+    return Object.keys( cache ).sort(function( a, b ) {
+      return ( a ? 1 : 0 ) - ( b ? 1 : 0 ) ||
+	( a in tips ? 0 : 1 ) - ( b in tips ? 0 : 1 ) ||
+	( a.charAt(0) === " " ? 1 : 0 ) - ( b.charAt(0) === " " ? 1 : 0 ) ||
+	Object.keys( cache ).indexOf( a ) - Object.keys( cache ).indexOf( b );
+    }).slice( 1 );
+  });
+
+  // Size cache helper
+  grunt.registerHelper( "get_cache", function( src ) {
+    var cache;
+
+    try {
+      cache = file.readJSON( src );
+    } catch ( e ) {
+      grunt.verbose.error( e );
+    }
+
+    // Progressively upgrade `cache`, which is one of:
+    // empty
+    // {}
+    // { file: size [,...] }
+    // { "": { file: size [,...] } [,...] }
+    if ( typeof cache !== "object" ) {
+      cache = undefined;
+    }
+    if ( !cache || !cache[""] ) {
+      // If promoting to dictionary, assume that data are for last run
+      cache = { "": { tips: {} }, " last run": cache };
+    }
+
+    return cache;
+  });
+
+  // Files helper.
+  grunt.registerHelper( "sizes", function( task ) {
+    task.requiresConfig( task.name );
+
+    var files = file.expandFiles( grunt.config( task.name ).files ),
+        sizes = {};
+
+    files.forEach(function( src, index ) {
+      var contents = file.read( src );
+      sizes[ src ] = contents.length;
+      if ( index === ( files.length - 1 ) ) {
+        sizes[ src + ".gz" ] = grunt.helper( "gzip", contents ).length;
+      }
+    });
+
+    return sizes;
+  });
+
+  // git helper.
+  grunt.registerHelper( "git_status", function( done ) {
     grunt.verbose.write( "Running `git branch` command..." );
     grunt.utils.spawn({
       cmd: "git",
-      args: [ "branch", "--no-color" ]
+      args: [ "branch", "--no-color", "--verbose", "--no-abbrev", "--contains", "HEAD" ]
     }, function(err, result) {
-      var branch;
-
       if ( err ) {
         grunt.verbose.error();
         done( err );
         return;
       }
 
-      result.split("\n").forEach(function(branch) {
-        var matches = /^\* (.*)/.exec( branch );
-        if ( matches != null && matches.length && matches[ 1 ] ) {
-          grunt.verbose.ok();
-          done( null, matches[ 1 ] );
-        }
-      });
+      var status = {},
+          matches = /^\* (\S+)\s+([0-9a-f]+)/im.exec( result );
+
+      if ( !matches ) {
+        grunt.verbose.error();
+        done("branch not found");
+      } else {
+        status.branch = matches[ 1 ];
+        status.head = matches[ 2 ];
+        grunt.utils.spawn({
+          cmd: "git",
+          args: [ "diff", "--quiet", "HEAD" ]
+        }, function( err, result, code ) {
+          status.changed = code !== 0;
+          done( null, status );
+        });
+      }
     });
   });
+
+  // Load test harness, if there is one
+  // A hack, but we can't drop it into tasks/ because loadTasks might evaluate the harness first
+  if ( path.existsSync("harness") ) {
+    grunt.loadTasks("harness");
+  }
 };
