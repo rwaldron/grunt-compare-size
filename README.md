@@ -1,3 +1,4 @@
+[![build status](https://secure.travis-ci.org/rwldrn/grunt-compare-size.png)](http://travis-ci.org/rwldrn/grunt-compare-size)
 # grunt-compare-size
 
 Compare file sizes on this branch to master
