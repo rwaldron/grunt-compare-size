@@ -2,16 +2,20 @@ var grunt = require("grunt"),
     file = require("fs"),
     path = require("path"),
     rdelta = /^(\S+).+?\((.+?)\).+?\s+(.*)$/,
-    files = [ "dist/source.js", "dist/source.min.js", "dist/source.min.js.gz" ],
-    sizecache = "./dist/.sizecache.json",
-    harness = "./harness/harness.js",
+    files = [
+      "dist/source.js", "dist/source.min.js", "dist/source.min.js.gz"
+    ],
+    sizecache = "dist/.sizecache.json",
+    harness = "harness/harness.js",
     overwritten = {},
     cacheEntry = {};
 
 function configureHarness() {
-  grunt.file.write( harness, "module.exports = function( grunt ) {\n" +
-    Array.prototype.join.call( arguments, "\n" ) +
-  "\n};" );
+  grunt.file.write( harness,
+    "module.exports = function( grunt ) {\n" +
+    [].join.call( arguments, "\n" ) +
+    "\n};"
+  );
 }
 
 function augmentCache( key, head, cache ) {
@@ -60,7 +64,9 @@ function testCompare( test, beforeCache, args, standardTests, success ) {
     // Conditional sanity checks for cache/output consistency
     if ( standardTests ) {
       // Every non-privileged label should have an output header followed by the list of files with correct sizes
-      expectedSizes = Object.keys( cacheEntry ).map(function( file ) { return cacheEntry[ file ]; });
+      expectedSizes = Object.keys( cacheEntry ).map(function( file ) {
+        return cacheEntry[ file ];
+      });
       Object.keys( beforeCache || {} ).forEach(function( label ) {
         if ( label ) {
           var seek = "Sizes - compared to " + label.replace( /^ /, "" ),
@@ -69,18 +75,20 @@ function testCompare( test, beforeCache, args, standardTests, success ) {
                   return ( new RegExp( "^Sizes - compared to " + label + " " ) ).test( header );
                 })[ 0 ] :
                 seek ),
-              detail = lines.slice( index + 1, index + 1 + files.length ),
-              detailSizes = [],
-              detailDeltas = [],
-              detailFiles = [],
+              detail = {
+                lines: lines.slice( index + 1, index + 1 + files.length ),
+                sizes: [],
+                deltas: [],
+                files: []
+              },
               cacheDeltas = [];
 
-          detail.forEach(function( line ) {
+          detail.lines.forEach(function( line ) {
             var match = rdelta.exec( line ) || [],
                 file = match[ 3 ];
-            detailFiles.push( file );
-            detailSizes.push( match[1] );
-            detailDeltas.push( match[2] );
+            detail.files.push( file );
+            detail.sizes.push( match[1] );
+            detail.deltas.push( match[2] );
           });
 
           files.forEach(function( file ) {
@@ -90,9 +98,9 @@ function testCompare( test, beforeCache, args, standardTests, success ) {
           });
 
           test.ok( index >= 0, seek );
-          test.deepEqual( detailFiles, files, label + ": all files appear" );
-          test.deepEqual( detailSizes, expectedSizes, label + ": all sizes correct" );
-          test.deepEqual( detailDeltas, cacheDeltas, label + ": all deltas match cache" );
+          test.deepEqual( detail.files, files, label + ": all files appear" );
+          test.deepEqual( detail.sizes, expectedSizes, label + ": all sizes correct" );
+          test.deepEqual( detail.deltas, cacheDeltas, label + ": all deltas match cache" );
           test.ok( !lines[ index + 1 + files.length ], label + ": no unexpected files" );
         }
       });
@@ -106,8 +114,10 @@ function testCompare( test, beforeCache, args, standardTests, success ) {
 
     success( lines, cache, {
       headers: headers,
-      saves: lines.filter(function( line ) { return (/^Saved at: /).test( line ); })
-    } );
+      saves: lines.filter(function( line ) {
+        return (/^Saved at: /).test( line );
+      })
+    });
   });
 }
 
@@ -163,7 +173,7 @@ module.exports["compare_size"] = {
     function next() {
       if ( harnesses.length ) {
         configureHarness( harnesses.shift() );
-	testCompare( test, undefined, [], true, check );
+        testCompare( test, undefined, [], true, check );
       } else {
         test.done();
       }

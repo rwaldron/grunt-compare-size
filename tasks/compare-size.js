@@ -2,7 +2,9 @@
  * grunt-compare-size
  * https://github.com/rwldrn/grunt-compare-size
  *
- * Copyright (c) 2012 Rick Waldron <waldron.rick@gmail.com>
+ * Copyright (c) 2012 Rick Waldron <waldron.rick@gmail.com> &
+ *                     Richard Gibson <richard.gibson@gmail.com> &
+ *                      Corey Frang <gnarf@gnarf.net>
  * Licensed under the MIT license.
  */
 
@@ -21,6 +23,7 @@ module.exports = function(grunt) {
   var config = grunt.config;
   var template = grunt.template;
   var sizecache = "dist/.sizecache.json";
+  var lastrun = " last run";
 
   // Compare size to saved sizes
   // Derived and adapted from Corey Frang's original `sizer`
@@ -35,7 +38,7 @@ module.exports = function(grunt) {
     // Obtain the current branch and continue...
     grunt.helper( "git_status", function( err, status ) {
       if ( err ) {
-        grunt.log.error( err );
+        log.error( err );
         status = {};
       }
 
@@ -49,13 +52,19 @@ module.exports = function(grunt) {
         }
 
         // Output header line
-	grunt.log.write( !oldsizes ? "Sizes" : "Sizes - compared to " + ( label.charAt( 0 ) === " " ?
-          label.substring( 1 ) :
-          label ) );
+        log.write(
+          !oldsizes ?
+            "Sizes" :
+            "Sizes - compared to " +
+            ( label[0] === " " ?
+              label.slice( 1 ) :
+              label )
+        );
+
         if ( label in tips ) {
-          grunt.log.write( " " + ( "@ " + tips[ label ] )[ "grey" ] ); 
+          log.write( " " + ( "@ " + tips[ label ] )[ "grey" ] );
         }
-        grunt.log.writeln("");
+        log.writeln("");
 
         // Output size comparisons
         for ( key in newsizes ) {
@@ -71,7 +80,7 @@ module.exports = function(grunt) {
             color = "grey";
           }
 
-          grunt.log.writetableln([ 12, 12, 55 ], [
+          log.writetableln([ 12, 12, 55 ], [
             utils._.lpad( newsizes[ key ], 10 ) ,
             utils._.lpad( "(" + diff + ")", 10 )[ color ],
             key
@@ -80,18 +89,18 @@ module.exports = function(grunt) {
 
         // Output blank line for following comparisons
         if ( labels.length > index + 1 ) {
-          grunt.log.writeln("");
+          log.writeln("");
         }
       });
 
       // Update "last run" sizes
-      cache[" last run"] = newsizes;
+      cache[ lastrun ] = newsizes;
 
       // Remember if we're at a branch tip and the branch name is an available key
       if ( status.branch && !status.changed && ( status.branch in tips || !cache[ status.branch ] ) ) {
         tips[ status.branch ] = status.head;
         cache[ status.branch ] = newsizes;
-        grunt.log.writeln( "\nSaved as: " + status.branch );
+        log.writeln( "\nSaved as: " + status.branch );
       }
 
       // Write to file
@@ -112,11 +121,11 @@ module.exports = function(grunt) {
     grunt.helper( "sorted_labels", cache ).forEach(function( label ) {
       // Skip the special labels
       if ( label && label.charAt( 0 ) !== " " ) {
-        grunt.log.write( label );
+        log.write( label );
         if ( label in tips ) {
-          grunt.log.write( " " + ( "@ " + tips[ label ] )[ "grey" ] ); 
+          log.write( " " + ( "@ " + tips[ label ] )[ "grey" ] );
         }
-        grunt.log.writeln("");
+        log.writeln("");
       }
     });
   });
@@ -126,8 +135,8 @@ module.exports = function(grunt) {
     var label,
         cache = grunt.helper( "get_cache", sizecache );
 
-    if ( !cache[" last run"] ) {
-      grunt.log.error("No size data found");
+    if ( !cache[ lastrun ] ) {
+      log.error("No size data found");
       return false;
     }
 
@@ -135,10 +144,10 @@ module.exports = function(grunt) {
     for ( label in this.flags ) {
       if ( label in cache[""].tips ) {
         delete cache[""].tips[ label ];
-	grunt.log.write("(removed branch data) ");
+        log.write("(removed branch data) ");
       }
-      cache[ label ] = cache[" last run"];
-      grunt.log.writeln( "Last run saved as: " + label );
+      cache[ label ] = cache[ lastrun ];
+      log.writeln( "Last run saved as: " + label );
     }
 
     file.write( sizecache, JSON.stringify( cache ) );
@@ -152,7 +161,7 @@ module.exports = function(grunt) {
     for ( label in this.flags ) {
       delete cache[""].tips[ label ];
       delete cache[ label ];
-      grunt.log.writeln( "Removed: " + label );
+      log.writeln( "Removed: " + label );
     }
 
     file.write( sizecache, JSON.stringify( cache ) );
@@ -169,13 +178,16 @@ module.exports = function(grunt) {
   grunt.registerHelper( "sorted_labels", function( cache ) {
     var tips = cache[""].tips;
 
-    // Sort labels: metadata, then branch tips by first add, then user entries by first add, then last run
+    // Sort labels: metadata, then branch tips by first add,
+    // then user entries by first add, then last run
     // Then return without metadata
     return Object.keys( cache ).sort(function( a, b ) {
+      var keys = Object.keys( cache );
+
       return ( a ? 1 : 0 ) - ( b ? 1 : 0 ) ||
-	( a in tips ? 0 : 1 ) - ( b in tips ? 0 : 1 ) ||
-	( a.charAt(0) === " " ? 1 : 0 ) - ( b.charAt(0) === " " ? 1 : 0 ) ||
-	Object.keys( cache ).indexOf( a ) - Object.keys( cache ).indexOf( b );
+        ( a in tips ? 0 : 1 ) - ( b in tips ? 0 : 1 ) ||
+        ( a.charAt(0) === " " ? 1 : 0 ) - ( b.charAt(0) === " " ? 1 : 0 ) ||
+        keys.indexOf( a ) - keys.indexOf( b );
     }).slice( 1 );
   });
 
@@ -186,7 +198,7 @@ module.exports = function(grunt) {
     try {
       cache = file.readJSON( src );
     } catch ( e ) {
-      grunt.verbose.error( e );
+      verbose.error( e );
     }
 
     // Progressively upgrade `cache`, which is one of:
@@ -225,29 +237,36 @@ module.exports = function(grunt) {
 
   // git helper.
   grunt.registerHelper( "git_status", function( done ) {
-    grunt.verbose.write( "Running `git branch` command..." );
-    grunt.utils.spawn({
+    verbose.write( "Running `git branch` command..." );
+    utils.spawn({
       cmd: "git",
-      args: [ "branch", "--no-color", "--verbose", "--no-abbrev", "--contains", "HEAD" ]
-    }, function(err, result) {
+      args: [
+        "branch", "--no-color", "--verbose", "--no-abbrev", "--contains",
+        "HEAD"
+      ]
+    }, function( err, result ) {
+      var status, matches;
+
       if ( err ) {
-        grunt.verbose.error();
+        verbose.error();
         done( err );
         return;
       }
 
-      var status = {},
-          matches = /^\* (\S+)\s+([0-9a-f]+)/im.exec( result );
+      status = {};
+      matches = /^\* (\S+)\s+([0-9a-f]+)/im.exec( result );
 
       if ( !matches ) {
-        grunt.verbose.error();
+        verbose.error();
         done("branch not found");
       } else {
         status.branch = matches[ 1 ];
         status.head = matches[ 2 ];
-        grunt.utils.spawn({
+        utils.spawn({
           cmd: "git",
-          args: [ "diff", "--quiet", "HEAD" ]
+          args: [
+            "diff", "--quiet", "HEAD"
+          ]
         }, function( err, result, code ) {
           status.changed = code !== 0;
           done( null, status );
