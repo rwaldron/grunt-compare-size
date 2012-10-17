@@ -14,6 +14,14 @@ task.loadNpmTasks('grunt-compare-size');
 
 ## Documentation
 
+ - `grunt compare_size_add:<label>:...`
+ - `grunt compare_size_remove:<label>:...`
+ - `grunt compare_size_list`
+ - `grunt compare_size_empty`
+
+
+## Testing
+
 Run tests like:
 
 ``` bash
@@ -26,6 +34,8 @@ $ ./node_modules/.bin/grunt test
 ```
 
 
+
+
 ## License
-Copyright (c) 2012 Rick Waldron <waldron.rick@gmail.com>, Corey Frang <gnarf@gnarf.net>
+Copyright (c) 2012 Rick Waldron <waldron.rick@gmail.com>, Corey Frang <gnarf@gnarf.net>, Richard Gibson <richard.gibson@gmail.com>
 Licensed under the MIT license.
