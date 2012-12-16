@@ -1,6 +1,8 @@
+"use strict";
+
 var grunt = require("grunt"),
-    file = require("fs"),
-    path = require("path"),
+    fs = require("fs"),
+    gzip = require("gzip-js"),
     rdelta = /^(\S+).+?\((.+?)\).+?\s+(.*)$/,
     files = [
       "dist/source.js", "dist/source.min.js", "dist/source.min.js.gz"
@@ -10,12 +12,12 @@ var grunt = require("grunt"),
     overwritten = {},
     cacheEntry = {};
 
+function gz( src ) {
+  return src ? gzip.zip( src, {} ) : "";
+}
+
 function configureHarness() {
-  grunt.file.write( harness,
-    "module.exports = function( grunt ) {\n" +
-    [].join.call( arguments, "\n" ) +
-    "\n};"
-  );
+  grunt.file.write( harness, "module.exports = " + [].join.call( arguments, "\n" ));
 }
 
 function augmentCache( key, head, cache ) {
@@ -32,12 +34,12 @@ function augmentCache( key, head, cache ) {
 }
 
 function testTask( test, task, args, success, failure ) {
-  grunt.utils.spawn({ cmd: "grunt", args: [ task ].concat( args || [] ) }, function( err, result ) {
-    console.log( "\n\nOUTPUT:\n" + result );
+  grunt.util.spawn({ cmd: "grunt", args: [ task ].concat( args || [] ) }, function( err, result ) {
+    console.log( "\n\nOUTPUT:\n" + result.stdout );
     if ( !err ) {
-      success( result );
+      success( result.stdout );
     } else if ( failure ) {
-      failure( err );
+      failure( result.stdout );
     } else {
       test.ok( false, "Error: " + err );
       test.done();
@@ -47,8 +49,8 @@ function testTask( test, task, args, success, failure ) {
 
 function testCompare( test, beforeCache, args, standardTests, success ) {
   if ( beforeCache == null ) {
-    if ( path.existsSync( sizecache ) ) {
-      file.unlinkSync( sizecache );
+    if ( fs.existsSync( sizecache ) ) {
+      fs.unlinkSync( sizecache );
     }
   } else {
     grunt.file.write( sizecache, JSON.stringify( beforeCache ) );
@@ -58,7 +60,6 @@ function testCompare( test, beforeCache, args, standardTests, success ) {
     var expectedSizes,
         lines = result.toString().split("\n").map(function( line ) { return line.trim(); }),
         cache = grunt.file.readJSON( sizecache ),
-        labels = Object.keys( cache || {} ).filter(function( key ) { return key !== ""; }),
         headers = lines.filter(function( line ) { return (/^Sizes/).test( line ); });
 
     // Conditional sanity checks for cache/output consistency
@@ -125,14 +126,14 @@ module.exports["compare_size"] = {
   "setup": function( test ) {
     // Store about-to-be-overwritten data
     [ sizecache, harness ].forEach(function( old ) {
-      overwritten[ old ] = path.existsSync( old ) ? grunt.file.read( old ) : undefined;
+      overwritten[ old ] = fs.existsSync( old ) ? grunt.file.read( old ) : undefined;
     });
 
     // Get file sizes for later comparison
     files.forEach(function( file ) {
-      cacheEntry[ file ] = path.existsSync( file ) ? grunt.file.read( file ).length : 0;
+      cacheEntry[ file ] = fs.existsSync( file ) ? grunt.file.read( file ).length : 0;
     });
-    cacheEntry[ files[2] ] = cacheEntry[ files[2] ] || grunt.helper( "gzip", grunt.file.read( files[1] ) ).length;
+    cacheEntry[ files[2] ] = cacheEntry[ files[2] ] || gz( grunt.file.read( files[1] ) ).length;
 
     test.done();
   },
@@ -140,6 +141,7 @@ module.exports["compare_size"] = {
   "off-tip/working-changes, old-format cache": function( test ) {
     function next() {
       if ( harnesses.length ) {
+
         configureHarness( harnesses.shift() );
         testCompare( test, cacheEntry, [], false, check );
       } else {
@@ -161,9 +163,9 @@ module.exports["compare_size"] = {
 
     var harnesses = [
       // off-tip
-      'grunt.registerHelper( "git_status", function( done ) { done("branch not found"); });',
+      'function( done ) { done("branch not found"); };',
       // working-changes
-      'grunt.registerHelper( "git_status", function( done ) { done( null, { branch: "wip", head: "deadbeef", changed: true }); });'
+      'function( done ) { done( null, { branch: "wip", head: "deadbeef", changed: true }); };'
     ];
 
     next();
@@ -193,9 +195,9 @@ module.exports["compare_size"] = {
 
     var harnesses = [
       // off-tip
-      'grunt.registerHelper( "git_status", function( done ) { done("branch not found"); });',
+      'function( done ) { done("branch not found"); };',
       // working-changes
-      'grunt.registerHelper( "git_status", function( done ) { done( null, { branch: "wip", head: "deadbeef", changed: true }); });'
+      'function( done ) { done( null, { branch: "wip", head: "deadbeef", changed: true }); };'
     ];
 
     next();
@@ -227,9 +229,9 @@ module.exports["compare_size"] = {
         expected = augmentCache( " last run", false, augmentCache("zeroes") ),
         harnesses = [
           // off-tip
-          'grunt.registerHelper( "git_status", function( done ) { done("branch not found"); });',
+          'function( done ) { done("branch not found"); };',
           // working-changes
-          'grunt.registerHelper( "git_status", function( done ) { done( null, { branch: "wip", head: "deadbeef", changed: true }); });'
+          'function( done ) { done( null, { branch: "wip", head: "deadbeef", changed: true }); };'
         ];
 
     Object.keys( cacheEntry ).forEach(function( file ) {
@@ -293,9 +295,9 @@ module.exports["compare_size"] = {
         ),
         harnesses = [
           // off-tip
-          'grunt.registerHelper( "git_status", function( done ) { done("branch not found"); });',
+          'function( done ) { done("branch not found"); };',
           // working-changes
-          'grunt.registerHelper( "git_status", function( done ) { done( null, { branch: "wip", head: "deadbeef", changed: true }); });'
+          'function( done ) { done( null, { branch: "wip", head: "deadbeef", changed: true }); };'
         ];
 
     Object.keys( cacheEntry ).forEach(function( file, index ) {
@@ -308,11 +310,11 @@ module.exports["compare_size"] = {
   },
 
   "at-tip, old-format cache": function( test ) {
-    configureHarness('grunt.registerHelper( "git_status", function( done ) { done( null, { branch: "branch", head: "tip", changed: false }); });');
+    configureHarness('function( done ) { done( null, { branch: "branch", head: "tip", changed: false }); };');
     testCompare( test, cacheEntry, [], false, function( lines, cache, detail ) {
       // output tests
       test.deepEqual( detail.headers, ["Sizes - compared to last run"], "Cache interpreted as last run" );
-      test.equal( lines[ lines.length - 1 ], "Saved as: branch", "Saved to branch label" );
+      test.equal( lines[ lines.length - 3 ], "Saved as: branch", "Saved to branch label" );
 
       // cache tests
       test.deepEqual( cache[""].tips, { branch: "tip" }, "New tip saved" );
@@ -326,11 +328,11 @@ module.exports["compare_size"] = {
   "at-tip, no cache": function( test ) {
     var expected = augmentCache( " last run", false, augmentCache( "branch", "tip" ) );
 
-    configureHarness('grunt.registerHelper( "git_status", function( done ) { done( null, { branch: "branch", head: "tip", changed: false }); });');
+    configureHarness('function( done ) { done( null, { branch: "branch", head: "tip", changed: false }); };');
     testCompare( test, undefined, [], true, function( lines, cache, detail ) {
       // output tests
       test.deepEqual( detail.headers, ["Sizes"], "Output has no comparison target" );
-      test.equal( lines[ lines.length - 1 ], "Saved as: branch", "Saved to branch label" );
+      test.equal( lines[ lines.length - 3 ], "Saved as: branch", "Saved to branch label" );
 
       // cache tests
       test.deepEqual( cache[""].tips, { branch: "tip" }, "New tip saved" );
@@ -349,7 +351,7 @@ module.exports["compare_size"] = {
       base["zeroes"][ file ] = 0;
     });
 
-    configureHarness('grunt.registerHelper( "git_status", function( done ) { done( null, { branch: "zeroes", head: "new-tip", changed: false }); });');
+    configureHarness('function( done ) { done( null, { branch: "zeroes", head: "new-tip", changed: false }); };');
     testCompare( test, base, [], true, function( lines, cache, detail ) {
       // output tests
       test.ok( (/zeroes.*@ old-tip/).test( detail.headers[ 0 ] ), "Sizes compare to correct target" );
@@ -360,7 +362,7 @@ module.exports["compare_size"] = {
         [ "-", "-", "-" ],
         "Correct deltas"
       );
-      test.equal( lines[ lines.length - 1 ], "Saved as: zeroes", "Saved to branch label" );
+      test.equal( lines[ lines.length - 3 ], "Saved as: zeroes", "Saved to branch label" );
 
       // cache tests
       test.deepEqual( cache[""].tips, { zeroes: "new-tip" }, "New tip saved" );
@@ -391,7 +393,7 @@ module.exports["compare_size"] = {
       base[" last run"][ file ] = cacheEntry[ file ] - index + 1;
     });
 
-    configureHarness('grunt.registerHelper( "git_status", function( done ) { done( null, { branch: "ones", head: "new-tip", changed: false }); });');
+    configureHarness('function( done ) { done( null, { branch: "ones", head: "new-tip", changed: false }); };');
     testCompare( test, base, [], true, function( lines, cache, detail ) {
       // output tests
       test.deepEqual( detail.headers, [
@@ -414,7 +416,7 @@ module.exports["compare_size"] = {
           header.replace( /Sizes - compared to ([a-z ]+[a-z])/, "$1" ) + ": correct deltas"
         );
       });
-      test.equal( lines[ lines.length - 1 ], "Saved as: ones", "Saved to branch label" );
+      test.equal( lines[ lines.length - 3 ], "Saved as: ones", "Saved to branch label" );
 
       // cache tests
       test.deepEqual( cache[""].tips, { stale: "tip", ones: "new-tip" }, "New tip saved" );
@@ -469,15 +471,15 @@ module.exports["compare_size"] = {
   },
 
   "add, no cache": function( test ) {
-    file.unlinkSync( sizecache );
+    fs.unlinkSync( sizecache );
     testTask( test, "compare_size_add:custom", [], function() {
       test.ok( false, "Error expected" );
     }, function( err ) {
       // output tests
-      test.ok( (/No size data found/).test( err.stdout ), "Error found" );
+      test.ok( (/No size data found/).test( err ), "Error found" );
 
       // cache tests
-      test.ok( !path.existsSync( sizecache ), "Cache not created" );
+      test.ok( !fs.existsSync( sizecache ), "Cache not created" );
 
       test.done();
     });
@@ -541,9 +543,9 @@ module.exports["compare_size"] = {
     grunt.file.write( sizecache, JSON.stringify(
       augmentCache( "branch", "tip", augmentCache( "removed", "tip", augmentCache(" last run") ) ) )
     );
-    testTask( test, "compare_size_empty", [], function( result ) {
+    testTask( test, "compare_size_empty", [], function() {
       // cache tests
-      test.ok( !path.existsSync( sizecache ), "Size cache removed" );
+      test.ok( !fs.existsSync( sizecache ), "Size cache removed" );
 
       test.done();
     });
@@ -553,8 +555,8 @@ module.exports["compare_size"] = {
     // Restore overwritten data
     Object.keys( overwritten ).forEach(function( old ) {
       if ( overwritten[ old ] == null ) {
-        if ( path.existsSync( old ) ) {
-          file.unlinkSync( old );
+        if ( fs.existsSync( old ) ) {
+          fs.unlinkSync( old );
         }
       } else {
         grunt.file.write( old, overwritten[ old ] );
