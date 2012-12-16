@@ -1,3 +1,1 @@
-module.exports = function( grunt ) {
-grunt.registerHelper( "git_status", function( done ) { done( null, { branch: "wip", head: "deadbeef", changed: true }); });
-};
+module.exports = function( done ) { done( null, { branch: "ones", head: "new-tip", changed: false }); };
