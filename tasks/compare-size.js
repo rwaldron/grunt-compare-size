@@ -15,17 +15,19 @@ var fs = require("fs"),
   gzip = require("gzip-js");
 
 module.exports = function(grunt) {
-  // Grunt utilities.
-  var file = grunt.file;
-  var utils = grunt.util;
-  var log = grunt.log;
-  var verbose = grunt.verbose;
-  var sizecache = "dist/.sizecache.json";
-  var lastrun = " last run";
-  var helpers = {
+  // Grunt utilities & task-wide assignments
+  var file, utils, log, verbose, sizecache, lastrun, helpers;
+
+  file = grunt.file;
+  utils = grunt.util;
+  log = grunt.log;
+  verbose = grunt.verbose;
+  sizecache = "dist/.sizecache.json";
+  lastrun = " last run";
+  helpers = {
 
     // Label sequence helper
-    "sorted_labels": function( cache ) {
+    sorted_labels: function( cache ) {
       var tips = cache[""].tips;
 
       // Sort labels: metadata, then branch tips by first add,
@@ -42,7 +44,7 @@ module.exports = function(grunt) {
     },
 
     // Size cache helper
-    "get_cache": function( src ) {
+    get_cache: function( src ) {
       var cache;
 
       try {
@@ -68,7 +70,7 @@ module.exports = function(grunt) {
     },
 
     // Files helper.
-    "sizes": function( task ) {
+    sizes: function( task ) {
       task.requiresConfig( task.name );
 
       var files = file.expandFiles( grunt.config( task.name ).files ),
@@ -86,7 +88,7 @@ module.exports = function(grunt) {
     },
 
     // git helper.
-    "git_status": function( done ) {
+    git_status: function( done ) {
       verbose.write( "Running `git branch` command..." );
       utils.spawn({
         cmd: "git",

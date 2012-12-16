@@ -163,9 +163,9 @@ module.exports["compare_size"] = {
 
     var harnesses = [
       // off-tip
-      'function( done ) { done("branch not found"); };',
+      "function( done ) { done('branch not found'); };",
       // working-changes
-      'function( done ) { done( null, { branch: "wip", head: "deadbeef", changed: true }); };'
+      "function( done ) { done( null, { branch: 'wip', head: 'deadbeef', changed: true }); };"
     ];
 
     next();
@@ -195,9 +195,9 @@ module.exports["compare_size"] = {
 
     var harnesses = [
       // off-tip
-      'function( done ) { done("branch not found"); };',
+      "function( done ) { done('branch not found'); };",
       // working-changes
-      'function( done ) { done( null, { branch: "wip", head: "deadbeef", changed: true }); };'
+      "function( done ) { done( null, { branch: 'wip', head: 'deadbeef', changed: true }); };"
     ];
 
     next();
@@ -229,9 +229,9 @@ module.exports["compare_size"] = {
         expected = augmentCache( " last run", false, augmentCache("zeroes") ),
         harnesses = [
           // off-tip
-          'function( done ) { done("branch not found"); };',
+          "function( done ) { done('branch not found'); };",
           // working-changes
-          'function( done ) { done( null, { branch: "wip", head: "deadbeef", changed: true }); };'
+          "function( done ) { done( null, { branch: 'wip', head: 'deadbeef', changed: true }); };"
         ];
 
     Object.keys( cacheEntry ).forEach(function( file ) {
@@ -295,9 +295,9 @@ module.exports["compare_size"] = {
         ),
         harnesses = [
           // off-tip
-          'function( done ) { done("branch not found"); };',
+          "function( done ) { done('branch not found'); };",
           // working-changes
-          'function( done ) { done( null, { branch: "wip", head: "deadbeef", changed: true }); };'
+          "function( done ) { done( null, { branch: 'wip', head: 'deadbeef', changed: true }); };"
         ];
 
     Object.keys( cacheEntry ).forEach(function( file, index ) {
