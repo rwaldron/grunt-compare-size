@@ -137,10 +137,11 @@ module.exports = function(grunt) {
   // Compare size to saved sizes
   // Derived and adapted from Corey Frang's original `sizer`
   grunt.registerTask( "compare_size", "Compare working size to saved sizes", function() {
-    var newsizes = helpers.sizes( this ),
-        cache = helpers.get_cache( sizecache ),
-        tips = cache[""].tips,
-        labels = helpers.sorted_labels( cache );
+    var done = this.async(),
+      newsizes = helpers.sizes( this ),
+      cache = helpers.get_cache( sizecache ),
+      tips = cache[""].tips,
+      labels = helpers.sorted_labels( cache );
 
     // Obtain the current branch and continue...
     helpers.git_status( function( err, status ) {
@@ -212,6 +213,8 @@ module.exports = function(grunt) {
 
       // Write to file
       file.write( sizecache, JSON.stringify( cache ) );
+
+      done();
     });
 
     // Fail task if errors were logged.
