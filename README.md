@@ -6,7 +6,7 @@ Compare file sizes on this branch to master
 
 Add this to your project's `Gruntfile.js` gruntfile:
 ```javascript
-task.loadNpmTasks('grunt-compare-size');
+grunt.loadNpmTasks('grunt-compare-size');
 ```
 
 Then add "grunt-compare-size" to your package.json dependencies.
