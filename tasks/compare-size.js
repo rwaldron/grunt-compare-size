@@ -97,20 +97,14 @@ module.exports = function(grunt) {
           "HEAD"
         ]
       }, function( err, result ) {
-        var status, matches;
+        var status = {},
+            matches = /^\* (.+?)\s+([0-9a-f]{8,})/im.exec( result );
 
-        if ( err ) {
+        if ( err || !matches ) {
           verbose.error();
-          done( err );
-          return;
-        }
-
-        status = {};
-        matches = /^\* (\S+)\s+([0-9a-f]+)/im.exec( result );
-
-        if ( !matches ) {
-          verbose.error();
-          done("branch not found");
+          done( err || "branch not found" );
+        } else if ( matches[ 1 ].indexOf(" ") >= 0 ) {
+          done( "not a branch tip: " + matches[ 2 ] );
         } else {
           status.branch = matches[ 1 ];
           status.head = matches[ 2 ];
