@@ -35,11 +35,18 @@ function augmentCache( key, head, cache ) {
 
 function testTask( test, task, args, success, failure ) {
   grunt.util.spawn({ cmd: "grunt", args: [ task ].concat( args || [] ) }, function( err, result ) {
-    console.log( "\n\nOUTPUT:\n" + result.stdout );
+    console.log( ("\n\nOUTPUT:")["bold"] +
+        ( "\n" + result.stdout ).replace( /\n/g, "\n    " ) );
+
+    // No error; send output to success callback
     if ( !err ) {
       success( result.stdout );
+
+    // Expected error; send output to failure callback
     } else if ( failure ) {
       failure( result.stdout );
+
+    // Unexpected error
     } else {
       test.ok( false, "Error: " + err );
       test.done();
