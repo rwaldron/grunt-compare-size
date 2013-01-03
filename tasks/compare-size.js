@@ -71,12 +71,10 @@ module.exports = function(grunt) {
 
     // Files helper.
     sizes: function( task ) {
-      task.requiresConfig( task.name );
-
       var sizes = {},
           files = file.expand(
             { filter: "isFile" },
-            grunt.config( task.name ).files
+            utils._.pluck( task.files, "src" )
           );
 
       files.forEach(function( src, index ) {
@@ -133,7 +131,7 @@ module.exports = function(grunt) {
 
   // Compare size to saved sizes
   // Derived and adapted from Corey Frang's original `sizer`
-  grunt.registerTask( "compare_size", "Compare working size to saved sizes", function() {
+  grunt.registerMultiTask( "compare_size", "Compare working size to saved sizes", function() {
     var done = this.async(),
       newsizes = helpers.sizes( this ),
       cache = helpers.get_cache( sizecache ),
