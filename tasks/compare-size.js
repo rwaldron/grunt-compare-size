@@ -74,7 +74,7 @@ module.exports = function(grunt) {
       var sizes = {},
           files = file.expand(
             { filter: "isFile" },
-            utils._.pluck( task.files, "src" )
+            task.filesSrc
           );
 
       files.forEach(function( src, index ) {
