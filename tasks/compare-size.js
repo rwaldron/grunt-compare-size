@@ -73,8 +73,11 @@ module.exports = function(grunt) {
     sizes: function( task ) {
       task.requiresConfig( task.name );
 
-      var files = file.expandFiles( grunt.config( task.name ).files ),
-          sizes = {};
+      var sizes = {},
+          files = file.expand(
+            { filter: "isFile" },
+            grunt.config( task.name ).files
+          );
 
       files.forEach(function( src, index ) {
         var contents = file.read( src );
