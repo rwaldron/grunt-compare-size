@@ -29,7 +29,18 @@ Add an entry to your Gruntfile.js's `initConfig` object, which will define the f
     ],
     options: {
       // Location of stored size data
-      "cache": ".sizecache.json"
+      cache: ".sizecache.json",
+
+      // Compressor label-function pairs
+      compress: {
+        gz: function( fileContents ) {
+          return require("gzip-js").zip( fileContents, {} ).length;
+        },
+        otherCompressorLabel: function( fileContents ) {
+          return compressedSize( fileContents );
+        },
+        ...
+      }
     }
   }
 
