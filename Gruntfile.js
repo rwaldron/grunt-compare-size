@@ -2,6 +2,8 @@
 
 module.exports = function(grunt) {
 
+  var gzip = require("gzip-js");
+
   // Project configuration.
   grunt.initConfig({
     compare_size: {
@@ -10,7 +12,12 @@ module.exports = function(grunt) {
         "dist/source.min.js"
       ],
       options: {
-        cache: "dist/.sizecache.json"
+        cache: "dist/.sizecache.json",
+        compress: {
+          gz: function( contents ) {
+            return gzip.zip( contents, {} ).length;
+          }
+        }
       }
     },
     nodeunit: {

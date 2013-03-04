@@ -11,15 +11,15 @@
 
  "use strict";
 
-var fs = require("fs"),
-  gzip = require("gzip-js");
+var fs = require("fs");
 
 module.exports = function(grunt) {
   // Grunt utilities & task-wide assignments
-  var file, utils, log, verbose, defaultCache, lastrun, helpers;
+  var file, utils, _, log, verbose, defaultCache, lastrun, helpers;
 
   file = grunt.file;
   utils = grunt.util;
+  _ = utils._;
   log = grunt.log;
   verbose = grunt.verbose;
   defaultCache = ".sizecache.json";
@@ -45,7 +45,7 @@ module.exports = function(grunt) {
 
     // Size cache helper
     get_cache: function( src ) {
-      var cache;
+      var cache, tmp;
 
       try {
         cache = fs.existsSync( src ) ? file.readJSON( src ) : undefined;
@@ -57,20 +57,35 @@ module.exports = function(grunt) {
       // empty
       // {}
       // { file: size [,...] }
-      // { "": { file: size [,...] } [,...] }
+      // { "": { tips: { label: SHA1, ... } }, label: { file: size, ... }, ... }
+      // { "": { version: 0.4, tips: { label: SHA1, ... } },
+      //   label: { file: { "": size, compressor: size, ... }, ... }, ... }
       if ( typeof cache !== "object" ) {
         cache = undefined;
       }
       if ( !cache || !cache[""] ) {
-        // If promoting to dictionary, assume that data are for last run
-        cache = utils._.object( [ "", lastrun ], [ { tips: {} }, cache ] );
+        // If promoting cache to dictionary, assume that data are for last run
+        cache = _.object( [ "", lastrun ], [ { version: 0, tips: {} }, cache ] );
+      }
+      if ( !cache[""].version ) {
+        cache[""].version = 0.4;
+        _.forEach( cache, function( sizes, label ) {
+          if ( !label || !sizes ) {
+            return;
+          }
+
+          // If promoting sizes to dictionary, assume that data are uncompressed
+          _.forEach( sizes, function( size, file ) {
+            sizes[ file ] = { "": size };
+          });
+        });
       }
 
       return cache;
     },
 
     // Files helper.
-    sizes: function( task ) {
+    sizes: function( task, compressors ) {
       var sizes = {},
           files = file.expand(
             { filter: "isFile" },
@@ -78,10 +93,12 @@ module.exports = function(grunt) {
           );
 
       files.forEach(function( src, index ) {
-        var contents = file.read( src );
-        sizes[ src ] = contents.length;
-        if ( index === ( files.length - 1 ) ) {
-          sizes[ src + ".gz" ] = gzip.zip( contents, {} ).length;
+        var contents = file.read( src ),
+            fileSizes = sizes[ src ] = { "": contents.length };
+        if ( compressors ) {
+          Object.keys( compressors ).forEach(function( compressor ) {
+            fileSizes[ compressor ] = compressors[ compressor ]( contents );
+          });
         }
       });
 
@@ -133,7 +150,8 @@ module.exports = function(grunt) {
   // Derived and adapted from Corey Frang's original `sizer`
   grunt.registerMultiTask( "compare_size", "Compare working size to saved sizes", function() {
     var done = this.async(),
-      newsizes = helpers.sizes( this ),
+      compressors = ( this.options() || {} ).compress,
+      newsizes = helpers.sizes( this, compressors ),
       sizecache = grunt.config("compare_size.options.cache") || defaultCache,
       cache = helpers.get_cache( sizecache ),
       tips = cache[""].tips,
@@ -141,10 +159,27 @@ module.exports = function(grunt) {
 
     // Obtain the current branch and continue...
     helpers.git_status( function( err, status ) {
+      var key,
+        prefixes = compressors ? [ "" ].concat( Object.keys( compressors ) ) : [ "" ],
+        columns = prefixes.map(function( compressor ) {
+          return ( compressor.length || -1 ) + 8;
+        });
+
       if ( err ) {
         log.warn( err );
         status = {};
       }
+
+      // Output sizes
+      log.writeln("Sizes");
+      columns.push( 80 - columns.reduce(function( a, b ) { return a + b; }) );
+      Object.keys( newsizes ).forEach(function( key ) {
+        log.writetableln( columns,
+          prefixes.map(function( prefix ) {
+            return utils._.lpad( ( prefix ? prefix + ":" : "" ) + newsizes[ key ][ prefix ], ( prefix.length || -1 ) + 7 );
+          }).concat( key + "" )
+        );
+      });
 
       labels.forEach(function( label, index ) {
         var key, diff, color,
@@ -156,45 +191,38 @@ module.exports = function(grunt) {
         }
 
         // Output header line
-        log.write(
-          !oldsizes ?
-            "Sizes" :
-            "Sizes - compared to " +
-            ( label[0] === " " ?
-              label.slice( 1 ) :
-              label )
+        log.writeln("");
+        log.writeln(
+          "Compared to " +
+          ( label[0] === " " ? label.slice( 1 ) : label ) +
+          ( label in tips ? " " + ( "@ " + tips[ label ] )[ "grey" ] : "" )
         );
 
-        if ( label in tips ) {
-          log.write( " " + ( "@ " + tips[ label ] )[ "grey" ] );
-        }
-        log.writeln("");
-
         // Output size comparisons
-        for ( key in newsizes ) {
-          diff = oldsizes && oldsizes[ key ] && ( newsizes[ key ] - oldsizes[ key ] );
+        Object.keys( newsizes ).forEach(function( key ) {
+          var old = oldsizes && oldsizes[ key ];
+          log.writetableln( columns,
+            prefixes.map(function( prefix ) {
+              var color = "green",
+                diff = old && ( newsizes[ key ][ prefix ] - old[ prefix ] );
 
-          if ( diff < 0 ) {
-            color = "green";
-          } else if ( diff > 0 ) {
-            diff = "+" + diff;
-            color = "red";
-          } else {
-            diff = "-";
-            color = "grey";
-          }
+              if ( diff < 0 ) {
+                diff += "";
+              } else if ( diff > 0 ) {
+                diff = "+" + diff;
+                color = "red";
+              } else {
+                diff = "=";
+                color = "grey";
+              }
 
-          log.writetableln([ 12, 12, 55 ], [
-            utils._.lpad( newsizes[ key ], 10 ) ,
-            utils._.lpad( "(" + diff + ")", 10 )[ color ],
-            key
-          ]);
-        }
-
-        // Output blank line for following comparisons
-        if ( labels.length > index + 1 ) {
-          log.writeln("");
-        }
+              return utils._.lpad(
+                ( prefix ? prefix + ":" : "" ) + diff,
+                ( prefix.length || -1 ) + 7
+              ).slice( 0, -diff.length ) + diff[ color ];
+            }).concat( key + "" )
+          );
+        });
       });
 
       // Update "last run" sizes
