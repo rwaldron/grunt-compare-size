@@ -9,7 +9,7 @@
  * Licensed under the MIT license.
  */
 
- "use strict";
+"use strict";
 
 var fs = require("fs");
 
@@ -94,7 +94,7 @@ module.exports = function(grunt) {
 
       files.forEach(function( src, index ) {
         var contents = file.read( src ),
-            fileSizes = sizes[ src ] = { "": contents.length };
+          fileSizes = sizes[ src ] = { "": contents.length };
         if ( compressors ) {
           Object.keys( compressors ).forEach(function( compressor ) {
             fileSizes[ compressor ] = compressors[ compressor ]( contents );
@@ -152,6 +152,7 @@ module.exports = function(grunt) {
     var done = this.async(),
       compressors = ( this.options() || {} ).compress,
       newsizes = helpers.sizes( this, compressors ),
+      files = Object.keys( newsizes ),
       sizecache = grunt.config("compare_size.options.cache") || defaultCache,
       cache = helpers.get_cache( sizecache ),
       tips = cache[""].tips,
@@ -161,8 +162,15 @@ module.exports = function(grunt) {
     helpers.git_status( function( err, status ) {
       var key,
         prefixes = compressors ? [ "" ].concat( Object.keys( compressors ) ) : [ "" ],
-        columns = prefixes.map(function( compressor ) {
-          return ( compressor.length || -1 ) + 8;
+        availableWidth = 80,
+        columns = prefixes.map(function( label ) {
+          // Ensure width for the label and 6-character sizes, plus a padding space
+          return Math.max( label.length + 1, 7 );
+        }),
+
+	// Right-align headers
+        commonHeader = prefixes.map(function( label, i ) {
+          return utils._.lpad( i === 0 && compressors ? "raw" : label, columns[ i ] - 1 );
         });
 
       if ( err ) {
@@ -170,17 +178,21 @@ module.exports = function(grunt) {
         status = {};
       }
 
+      // Remaining space goes to the file path
+      columns.push( Math.max( 1, availableWidth -
+          columns.reduce(function( a, b ) { return a + b; }) ) );
+
       // Output sizes
-      log.writeln("Sizes");
-      columns.push( 80 - columns.reduce(function( a, b ) { return a + b; }) );
-      Object.keys( newsizes ).forEach(function( key ) {
+      log.writetableln( columns, commonHeader.concat("Sizes") );
+      files.forEach(function( key ) {
         log.writetableln( columns,
-          prefixes.map(function( prefix ) {
-            return utils._.lpad( ( prefix ? prefix + ":" : "" ) + newsizes[ key ][ prefix ], ( prefix.length || -1 ) + 7 );
+          prefixes.map(function( prefix, i ) {
+            return utils._.lpad( newsizes[ key ][ prefix ], columns[ i ] - 1 );
           }).concat( key + "" )
         );
       });
 
+      // Comparisons
       labels.forEach(function( label, index ) {
         var key, diff, color,
             oldsizes = cache[ label ];
@@ -190,36 +202,30 @@ module.exports = function(grunt) {
           return;
         }
 
-        // Output header line
+        // Header
         log.writeln("");
-        log.writeln(
-          "Compared to " +
+        log.writetableln( columns, commonHeader.concat( "Compared to " +
           ( label[0] === " " ? label.slice( 1 ) : label ) +
           ( label in tips ? " " + ( "@ " + tips[ label ] )[ "grey" ] : "" )
-        );
+        ));
 
-        // Output size comparisons
-        Object.keys( newsizes ).forEach(function( key ) {
+        // Data
+        files.forEach(function( key ) {
           var old = oldsizes && oldsizes[ key ];
           log.writetableln( columns,
-            prefixes.map(function( prefix ) {
+            prefixes.map(function( prefix, i ) {
               var color = "green",
                 diff = old && ( newsizes[ key ][ prefix ] - old[ prefix ] );
 
-              if ( diff < 0 ) {
-                diff += "";
-              } else if ( diff > 0 ) {
+              if ( diff > 0 ) {
                 diff = "+" + diff;
                 color = "red";
-              } else {
+              } else if ( !diff ) {
                 diff = "=";
                 color = "grey";
               }
 
-              return utils._.lpad(
-                ( prefix ? prefix + ":" : "" ) + diff,
-                ( prefix.length || -1 ) + 7
-              ).slice( 0, -diff.length ) + diff[ color ];
+              return utils._.lpad( diff, columns[ i ] - 1 )[ color ];
             }).concat( key + "" )
           );
         });
