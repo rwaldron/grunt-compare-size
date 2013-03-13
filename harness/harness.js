@@ -1,1 +1,0 @@
-module.exports = function( done ) { done( null, { branch: "ones", head: "new-tip", changed: false }); };

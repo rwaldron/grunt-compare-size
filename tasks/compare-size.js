@@ -74,9 +74,23 @@ module.exports = function(grunt) {
             return;
           }
 
-          // If promoting sizes to dictionary, assume that data are uncompressed
-          _.forEach( sizes, function( size, file ) {
-            sizes[ file ] = { "": size };
+          // If promoting sizes to dictionary, assume that compressed size data are indicated by suffixes
+          Object.keys( sizes ).sort().forEach(function( file ) {
+            var parts = file.split("."),
+              prefix = parts.shift();
+
+            // Append compressed size data to a matching prefix
+            while ( parts.length ) {
+              if ( typeof sizes[ prefix ] === "object" ) {
+                sizes[ prefix ][ parts.join(".") ] = sizes[ file ];
+                delete sizes[ file ];
+                return;
+              }
+              prefix += "." + parts.shift();
+            }
+
+            // Store uncompressed size data
+            sizes[ file ] = { "": sizes[ file ] };
           });
         });
       }
@@ -142,7 +156,7 @@ module.exports = function(grunt) {
 
   // Load test harness, if there is one
   // A hack, but we can't drop it into tasks/ because loadTasks might evaluate the harness first
-  if ( fs.existsSync("./harness") ) {
+  if ( grunt.file.expand("./harness/harness*").length ) {
     helpers.git_status = require("../harness/harness");
   }
 
@@ -197,8 +211,8 @@ module.exports = function(grunt) {
         var key, diff, color,
             oldsizes = cache[ label ];
 
-        // Skip metadata key
-        if ( label === "" ) {
+        // Skip metadata key and empty cache entries
+        if ( label === "" || !cache[ label ] ) {
           return;
         }
 
@@ -221,7 +235,7 @@ module.exports = function(grunt) {
                 diff = "+" + diff;
                 color = "red";
               } else if ( !diff ) {
-                diff = "=";
+                diff = diff === 0 ? "=" : "?";
                 color = "grey";
               }
 
