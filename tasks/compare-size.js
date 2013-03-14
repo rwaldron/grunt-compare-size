@@ -63,7 +63,7 @@ module.exports = function(grunt) {
       }
       if ( !cache || !cache[""] ) {
         // If promoting to dictionary, assume that data are for last run
-        cache = { "": { tips: {} }, " last run": cache };
+        cache = utils._.object( [ "", lastrun ], [ { tips: {} }, cache ] );
       }
 
       return cache;
@@ -219,7 +219,7 @@ module.exports = function(grunt) {
   });
 
   // List saved sizes
-  grunt.registerTask( "compare_size_list", "List saved sizes", function() {
+  grunt.registerTask( "compare_size:list", "List saved sizes", function() {
     var cache = helpers.get_cache( sizecache ),
         tips = cache[""].tips;
 
@@ -236,7 +236,7 @@ module.exports = function(grunt) {
   });
 
   // Add custom label
-  grunt.registerTask( "compare_size_add", "Add to saved sizes", function() {
+  grunt.registerTask( "compare_size:add", "Add to saved sizes", function() {
     var label,
         cache = helpers.get_cache( sizecache );
 
@@ -259,7 +259,7 @@ module.exports = function(grunt) {
   });
 
   // Remove custom label
-  grunt.registerTask( "compare_size_remove", "Remove from saved sizes", function() {
+  grunt.registerTask( "compare_size:remove", "Remove from saved sizes", function() {
     var label,
         cache = helpers.get_cache( sizecache );
 
@@ -273,9 +273,18 @@ module.exports = function(grunt) {
   });
 
   // Empty size cache
-  grunt.registerTask( "compare_size_empty", "Clear all saved sizes", function() {
+  grunt.registerTask( "compare_size:empty", "Clear all saved sizes", function() {
     if ( fs.existsSync( sizecache ) ) {
       fs.unlinkSync( sizecache );
     }
+  });
+
+  // Backwards compatibility aliases
+  "list add remove empty".split(" ").forEach(function( task ) {
+    grunt.registerTask( "compare_size_" + task, function() {
+      grunt.task.run( [ "compare_size:" + task ].concat(
+        Object.keys( this.flags )
+      ).join(":") );
+    });
   });
 };

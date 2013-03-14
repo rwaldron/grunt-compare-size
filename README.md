@@ -41,25 +41,25 @@ grunt compare_size
 To add a labeled measurement to the saved list of measurements:
 
 ```js
-grunt compare_size_add:<label>:...
+grunt compare_size:add:<label>:...
 ```
 
 To remove a labeled measurement:
 
 ```js
-grunt compare_size_remove:<label>:...
+grunt compare_size:remove:<label>:...
 ```
 
 To view all saved measurements:
 
 ```js
-grunt compare_size_list
+grunt compare_size:list
 ```
 
 To clear out all saved measurements:
 
 ```js
-grunt compare_size_empty
+grunt compare_size:empty
 ```
 
 
