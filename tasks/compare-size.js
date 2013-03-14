@@ -273,13 +273,40 @@ module.exports = function(grunt) {
   });
 
   // Empty size cache
-  grunt.registerTask( "compare_size:empty", "Clear all saved sizes", function() {
-    if ( fs.existsSync( sizecache ) ) {
+  grunt.registerTask( "compare_size:prune", "Clear all saved sizes except those specified", function() {
+    var cache = helpers.get_cache( sizecache ),
+        saved = Object.keys( cache ),
+        keep = Object.keys( this.flags );
+
+    // If preserving anything, include last run
+    if ( keep.length ) {
+      keep.push( lastrun );
+    }
+
+    saved.forEach(function( label ) {
+      if ( !label || keep.indexOf( label ) !== -1 ) {
+        return;
+      }
+      delete cache[""].tips[ label ];
+      delete cache[ label ];
+      if ( keep.length ) {
+        log.writeln( "Removed: " + label );
+      }
+    });
+
+    if ( Object.keys( cache ).length > 1 ) {
+      file.write( sizecache, JSON.stringify( cache ) );
+    } else if ( fs.existsSync( sizecache ) ) {
       fs.unlinkSync( sizecache );
     }
   });
 
   // Backwards compatibility aliases
+  grunt.registerTask( "compare_size:empty", function() {
+    grunt.task.run( ["compare_size:prune"].concat(
+      Object.keys( this.flags )
+    ).join(":") );
+  });
   "list add remove empty".split(" ").forEach(function( task ) {
     grunt.registerTask( "compare_size_" + task, function() {
       grunt.task.run( [ "compare_size:" + task ].concat(

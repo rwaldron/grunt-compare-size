@@ -34,32 +34,38 @@ Add an entry to your Gruntfile.js's `initConfig` object, which will define the f
 
 To run a size comparison:
 
-```js
+```
 grunt compare_size
 ```
 
 To add a labeled measurement to the saved list of measurements:
 
-```js
+```
 grunt compare_size:add:<label>:...
 ```
 
 To remove a labeled measurement:
 
-```js
+```
 grunt compare_size:remove:<label>:...
 ```
 
 To view all saved measurements:
 
-```js
+```
 grunt compare_size:list
 ```
 
 To clear out all saved measurements:
 
-```js
+```
 grunt compare_size:empty
+```
+
+To clear out all but some saved measurements:
+
+```
+grunt compare_size:prune:keep:alsoKeep:...
 ```
 
 

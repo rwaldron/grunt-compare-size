@@ -546,13 +546,55 @@ module.exports["compare_size"] = {
     });
   },
 
-  "clear": function( test ) {
+  "empty": function( test ) {
     grunt.file.write( sizecache, JSON.stringify(
       augmentCache( "branch", "tip", augmentCache( "removed", "tip", augmentCache(" last run") ) ) )
     );
     testTask( test, "compare_size_empty", [], function() {
       // cache tests
       test.ok( !fs.existsSync( sizecache ), "Size cache removed" );
+
+      test.done();
+    });
+  },
+
+  "indiscriminate prune": function( test ) {
+    grunt.file.write( sizecache, JSON.stringify(
+      augmentCache( "branch", "tip", augmentCache( "removed", "tip", augmentCache(" last run") ) ) )
+    );
+    testTask( test, "compare_size:prune", [], function( result ) {
+      var lines = result.toString().split("\n").map(function( line ) { return line.trim(); }),
+          removes = lines.filter(function( line ) { return (/^Removed:/).test( line ); });
+
+      // output tests
+      test.deepEqual( removes, [], "No per-label output" );
+
+      // cache tests
+      test.ok( !fs.existsSync( sizecache ), "Size cache removed" );
+
+      test.done();
+    });
+  },
+
+  "selective prune": function( test ) {
+    grunt.file.write( sizecache, JSON.stringify(
+      augmentCache( "foo", false, augmentCache( "branch", "tip", augmentCache( "removed", "tip", augmentCache(" last run") ) ) ) )
+    );
+    testTask( test, "compare_size:prune:bar:branch", [], function( result ) {
+      var lines = result.toString().split("\n").map(function( line ) { return line.trim(); }),
+          removes = lines.filter(function( line ) { return (/^Removed:/).test( line ); }),
+          cache = grunt.file.readJSON( sizecache );
+
+      // output tests
+      test.deepEqual( removes.sort(), [ "Removed: foo", "Removed: removed" ], "Explicit per-label output" );
+
+      // cache tests
+      test.deepEqual( cache[""].tips, { branch: "tip" }, "Specified branches preserved" );
+      test.deepEqual( cache[" last run"], cacheEntry, "Last run unchanged" );
+      test.deepEqual( cache["branch"], cacheEntry, "Branch data retained" );
+      test.ok( !( "removed" in cache ) && !( "foo" in cache ), "Data removed" );
+      test.deepEqual( cache, augmentCache( "branch", "tip", augmentCache(" last run") ),
+        "No unexpected data" );
 
       test.done();
     });
