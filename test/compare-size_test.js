@@ -439,7 +439,7 @@ module.exports["compare_size"] = {
     var cache = augmentCache( "label", false, augmentCache( "branch", "tip", augmentCache(" last run") ) );
 
     grunt.file.write( sizecache, JSON.stringify( cache ) );
-    testTask( test, "compare_size_list", [], function( result ) {
+    testTask( test, "compare_size:list", [], function( result ) {
       var lines = result.toString().split("\n").map(function( line ) { return line.trim(); }),
           index = lines.indexOf("label");
 
@@ -457,7 +457,7 @@ module.exports["compare_size"] = {
 
   "add, old-format cache": function( test ) {
     grunt.file.write( sizecache, JSON.stringify( cacheEntry ) );
-    testTask( test, "compare_size_add:custom", [], function( result ) {
+    testTask( test, "compare_size:add:custom", [], function( result ) {
       var lines = result.toString().split("\n").map(function( line ) { return line.trim(); }),
           cache = grunt.file.readJSON( sizecache ),
           index = lines.indexOf("Last run saved as: custom");
@@ -479,7 +479,7 @@ module.exports["compare_size"] = {
 
   "add, no cache": function( test ) {
     fs.unlinkSync( sizecache );
-    testTask( test, "compare_size_add:custom", [], function() {
+    testTask( test, "compare_size:add:custom", [], function() {
       test.ok( false, "Error expected" );
     }, function( err ) {
       // output tests
@@ -496,7 +496,7 @@ module.exports["compare_size"] = {
     grunt.file.write( sizecache, JSON.stringify(
       augmentCache( "branch", "tip", augmentCache( "replaced", "tip", augmentCache(" last run") ) ) )
     );
-    testTask( test, "compare_size_add:custom:replaced", [], function( result ) {
+    testTask( test, "compare_size:add:custom:replaced", [], function( result ) {
       var lines = result.toString().split("\n").map(function( line ) { return line.trim(); }),
           cache = grunt.file.readJSON( sizecache ),
           index = lines.indexOf("Last run saved as: custom");
@@ -524,7 +524,7 @@ module.exports["compare_size"] = {
     grunt.file.write( sizecache, JSON.stringify(
       augmentCache( "branch", "tip", augmentCache( "removed", "tip", augmentCache(" last run") ) ) )
     );
-    testTask( test, "compare_size_remove:removed", [], function( result ) {
+    testTask( test, "compare_size:remove:removed", [], function( result ) {
       var lines = result.toString().split("\n").map(function( line ) { return line.trim(); }),
           cache = grunt.file.readJSON( sizecache ),
           index = lines.indexOf("Removed: removed");
@@ -550,7 +550,7 @@ module.exports["compare_size"] = {
     grunt.file.write( sizecache, JSON.stringify(
       augmentCache( "branch", "tip", augmentCache( "removed", "tip", augmentCache(" last run") ) ) )
     );
-    testTask( test, "compare_size_empty", [], function() {
+    testTask( test, "compare_size:empty", [], function() {
       // cache tests
       test.ok( !fs.existsSync( sizecache ), "Size cache removed" );
 
