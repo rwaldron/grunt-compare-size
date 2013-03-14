@@ -4,18 +4,14 @@ var grunt = require("grunt"),
     fs = require("fs"),
     gzip = require("gzip-js"),
     _ = grunt.util._,
-    rfileLine = /^\s*((?:[-+=?0-9]+\s+)+)(.*)/,
-    files = [ "dist/source.js", "dist/source.min.js" ],
-    sizecache = "dist/.sizecache.json",
+    files = [ "tasks/compare-size.js", "test/compare-size.js" ],
+    compressors = [ "", "gz" ],
+    sizecache = ".sizecache.json",
     harness = "harness/harness.js",
+    rfileLine = /^\s*((?:[-+=?0-9]+\s+)+)(.*)/,
     overwritten = {},
-    cacheEntry = {},
-    cacheEntry_0_4 = {},
-    compressors = [];
-
-function gz( src ) {
-  return src ? gzip.zip( src, {} ) : "";
-}
+    cacheEntry_0_3 = {},
+    cacheEntry = {};
 
 function configureHarness() {
   grunt.file.write( harness, "module.exports = " + [].join.call( arguments, "\n" ));
@@ -40,18 +36,20 @@ function formatDelta( delta ) {
 
 function backfillCompression( cache, test ) {
   Object.keys( cache ).forEach(function( label ) {
-    // skip metadata
+    // Skip metadata
     if ( !label ) {
       return;
     }
 
-    // skip the last file (which was always compressed)
+    // Skip the last file (which was always compressed)
     files.slice( 0, -1 ).forEach(function( file ) {
       compressors.forEach(function( compressor ) {
+        // Make sure that compressed data is not already present
         if ( compressor && compressor in cache[ label ][ file ] ) {
           test.strictEqual( cache[ label ][ file ][ compressor ], undefined, "No " + compressor + " data" );
+        // ...and add it
         } else if ( compressor ) {
-          cache[ label ][ file ][ compressor ] = cacheEntry_0_4[ file ][ compressor ];
+          cache[ label ][ file ][ compressor ] = cacheEntry[ file ][ compressor ];
         }
       });
     });
@@ -60,7 +58,7 @@ function backfillCompression( cache, test ) {
 
 function augmentCache( key, head, cache ) {
   cache = cache || { "": { version: 0.4, tips: {} } };
-  cache[ key ] = _.clone( cacheEntry_0_4, true );
+  cache[ key ] = _.clone( cacheEntry, true );
   if ( head ) {
     cache[""].tips[ key ] = head;
   }
@@ -99,7 +97,7 @@ function testCompare( test, beforeCache, args, standardTests, success ) {
 
   testTask( test, "compare_size", args, function( result ) {
     var expected = {},
-        lines = grunt.log.uncolor( result.toString() ).split("\n").map(function( line ) { return line.trim(); }),
+        lines = grunt.log.uncolor( result ).split("\n").map(function( line ) { return line.trim(); }),
         details = {
           headers: lines.filter(function( line ) {
             return (/ Sizes| Compared/).test( line );
@@ -127,6 +125,9 @@ function testCompare( test, beforeCache, args, standardTests, success ) {
       if ( beforeCache && !beforeCache[""] ) {
         beforeCache = { "": undefined, " last run": beforeCache };
       }
+
+      // Check command-line output
+      test.ok( (/ Sizes$/).test( details.headers[ 0 ] ), "Raw sizes first" );
       Object.keys( beforeCache || {} ).forEach(function( label ) {
         var testLabel = label.replace( /^ /, "" ) || "raw",
             rlabel = label ? new RegExp( " Compared to " + testLabel + "( .*)?" ) : / Sizes/,
@@ -141,6 +142,7 @@ function testCompare( test, beforeCache, args, standardTests, success ) {
             },
             expectedValues = {};
 
+        // Get files and values from the comparison lines
         detail.lines.forEach(function( line ) {
           var match = rfileLine.exec( line ) || [],
               sizes = ( match[ 1 ] || "" ).match( /\S+/g ) || [],
@@ -155,41 +157,63 @@ function testCompare( test, beforeCache, args, standardTests, success ) {
 
 
         test.ok( index >= 0, testLabel );
-        test.deepEqual( detail.files, files, testLabel + ": all files appear" );
-        test.ok( !lines[ index + 1 + files.length ], testLabel + ": no unexpected files" );
+        test.deepEqual( detail.files, files, testLabel + ": all files output" );
+        test.ok( !lines[ index + 1 + files.length ], testLabel + ": no unexpected files output" );
+
+        // Check raw sizes
         if ( !label ) {
-          test.deepEqual( detail.values, cacheEntry_0_4, testLabel + ": all sizes correct" );
+          test.deepEqual( detail.values, cacheEntry, testLabel + ": all sizes match cache" );
+
+        // Check size comparisons
         } else {
           files.forEach(function( file ) {
             var sizeBefore = ( beforeCache[ label ] || {} )[ file ],
                 expected = {};
 
+            // 0.4 format
             if ( typeof sizeBefore === "object" ) {
               Object.keys( sizeBefore ).forEach(function( compressor ) {
-                expected[ compressor ] = formatDelta( cacheEntry_0_4[ file ][ compressor ] -
+                expected[ compressor ] = formatDelta( cacheEntry[ file ][ compressor ] -
                     sizeBefore[ compressor ] );
               });
+
+            // Pre-0.4 format
             } else {
-              expected = { "": formatDelta( cacheEntry_0_4[ file ][""] - sizeBefore ) };
+              expected = { "": formatDelta( cacheEntry[ file ][""] - sizeBefore ) };
               outputCompressors.forEach(function( compressor ) {
-                expected[ compressor ] = formatDelta( cacheEntry_0_4[ file ][ compressor ] -
+                expected[ compressor ] = formatDelta( cacheEntry[ file ][ compressor ] -
                     ( beforeCache[ label ] || {} )[ file + "." + compressor ] );
               });
             }
 
-            test.deepEqual( detail.values[ file ], expected, testLabel + ": all deltas correct for " + file );
+            test.deepEqual( detail.values[ file ], expected, testLabel + ": all deltas match cache for " + file );
           });
         }
       });
 
-      // Cache tests
+      // Check expected deltas
+      if ( typeof standardTests === "object" ) {
+        test.equal( details.headers.length, Object.keys( standardTests ).length + 1, "Header count" );
+        Object.keys( standardTests ).forEach(function( label, i ) {
+          var headerIndex = i + 1,
+              tip = beforeCache[""].tips[ label ],
+              re = " Compared to " + label.replace( /^\s/, "" ) + ( tip ? " @ " + tip : "" ) + "$";
+          test.ok( (new RegExp( re )).test( details.headers[ headerIndex ] ),
+              "Correct sequence: " + label );
+          test.deepEqual( details.deltas[ details.headers[ headerIndex ] ], standardTests[ label ],
+              "Deltas correct: " + label );
+        });
+      }
+
+      // Check cache contents
       test.equal( typeof cache, "object", "Size cache exists" );
       test.equal( typeof cache[""], "object", "Size cache has metadata" );
       test.equal( cache[""].version, 0.4, "Size cache is correctly versioned" );
       test.equal( typeof cache[""].tips, "object", "Size cache identifies branch tips" );
-      test.deepEqual( cache[" last run"], cacheEntry_0_4, "Size cache includes 'last' data" );
+      test.deepEqual( cache[" last run"], cacheEntry, "Size cache includes 'last' data" );
     }
 
+    // Test-specific assertions
     success( lines, cache, details );
   });
 }
@@ -202,14 +226,13 @@ module.exports["compare_size"] = {
     });
 
     // Get file sizes for later comparison
-    compressors = [ "", "gz" ];
     files.forEach(function( file, i ) {
       var contents = fs.existsSync( file ) ? grunt.file.read( file ) : "",
-        compressed = gz( contents );
-      cacheEntry_0_4[ file ] = { "": contents.length, "gz": compressed.length };
-      cacheEntry[ file ] = contents.length;
+          compressed = contents ? gzip.zip( contents, {} ) : "";
+      cacheEntry[ file ] = { "": contents.length, "gz": compressed.length };
+      cacheEntry_0_3[ file ] = contents.length;
       if ( i + 1 === files.length ) {
-        cacheEntry[ file + ".gz" ] = compressed.length;
+        cacheEntry_0_3[ file + ".gz" ] = compressed.length;
       }
     });
 
@@ -220,21 +243,21 @@ module.exports["compare_size"] = {
     function next() {
       if ( harnesses.length ) {
         configureHarness( harnesses.shift() );
-        testCompare( test, cacheEntry, [], false, check );
+        testCompare( test, cacheEntry_0_3, [], false, check );
       } else {
         test.done();
       }
     }
 
     function check( lines, cache, detail ) {
-      // output tests
+      // Output tests
       test.equal( detail.headers.length, 2, "Header count" );
       test.ok( (/ Sizes$/).test( detail.headers[ 0 ] ), "Correct placement: Sizes" );
       test.ok( (/ Compared to last run$/).test( detail.headers[ 1 ] ), "Cache interpreted as last run" );
       test.deepEqual( detail.deltas[ detail.headers[ 1 ] ], expectedDeltas[" last run"], "Deltas correct: last run" );
       test.deepEqual( detail.saves, [], "Only saved to last run" );
 
-      // cache tests
+      // Cache tests
       test.deepEqual( cache[""].tips, {}, "No recorded branch tips" );
       test.deepEqual( cache, augmentCache(" last run"), "No unexpected data" );
 
@@ -243,16 +266,16 @@ module.exports["compare_size"] = {
 
     var expectedDeltas = { " last run": {} },
         harnesses = [
-          // off-tip
+          // Off-tip
           "function( done ) { done('branch not found'); };",
-          // working-changes
+          // Working-changes
           "function( done ) { done( null, { branch: 'wip', head: 'deadbeef', changed: true }); };"
         ];
 
     files.forEach(function( file, index ) {
       expectedDeltas[" last run"][ file ] = compressors.map(function( compressor ) {
-        // pre-0.4 caches only stored compressed data for the last file in the list
-        return !compressor || index === files.length - 1 ?
+        // Pre-0.4 caches only stored compressed data for the last file in the list
+        return !compressor || index + 1 === files.length ?
           "=" :
           "?";
       });
@@ -272,12 +295,12 @@ module.exports["compare_size"] = {
     }
 
     function check( lines, cache, detail ) {
-      // output tests
+      // Output tests
       test.equal( detail.headers.length, 1, "Header count" );
       test.ok( (/ Sizes$/).test( detail.headers[ 0 ] ), "Correct placement: Sizes" );
       test.deepEqual( detail.saves, [], "Only saved to last run" );
 
-      // cache tests
+      // Cache tests
       test.deepEqual( cache[""].tips, {}, "No recorded branch tips" );
       test.deepEqual( cache, augmentCache(" last run"), "No unexpected data" );
 
@@ -285,9 +308,9 @@ module.exports["compare_size"] = {
     }
 
     var harnesses = [
-          // off-tip
+          // Off-tip
           "function( done ) { done('branch not found'); };",
-          // working-changes
+          // Working-changes
           "function( done ) { done( null, { branch: 'wip', head: 'deadbeef', changed: true }); };"
         ];
 
@@ -298,30 +321,17 @@ module.exports["compare_size"] = {
     function next() {
       if ( harnesses.length ) {
         configureHarness( harnesses.shift() );
-        testCompare( test, base, [], true, check );
+        testCompare( test, base, [], expectedDeltas, check );
       } else {
         test.done();
       }
     }
 
     function check( lines, cache, detail ) {
-      // size comparisons
-      test.equal( detail.headers.length, labels.length + 1, "Header count" );
-      test.ok( (/ Sizes$/).test( detail.headers[ 0 ] ), "Correct placement: Sizes" );
-      labels.forEach(function( label, i ) {
-        var headerIndex = i + 1,
-            tip = base[""].tips[ label ],
-            re = " Compared to " + label.replace( /^\s/, "" ) + ( tip ? " @ " + tip : "" ) + "$";
-        test.ok( (new RegExp( re )).test( grunt.log.uncolor( detail.headers[ headerIndex ] ) ),
-            "Correct placement: " + label );
-        test.deepEqual( detail.deltas[ detail.headers[ headerIndex ] ], expectedDeltas[ label ],
-            "Deltas correct: " + label );
-      });
-
-      // branch logging
+      // Branch logging
       test.deepEqual( detail.saves, [], "Only saved to last run" );
 
-      // new cache contents
+      // New cache contents
       test.deepEqual( cache[""].tips, {}, "No recorded branch tips" );
       test.deepEqual( cache, expected, "No unexpected data" );
 
@@ -333,9 +343,9 @@ module.exports["compare_size"] = {
         base = augmentCache("zeroes"),
         expected = augmentCache( " last run", false, augmentCache("zeroes") ),
         harnesses = [
-          // off-tip
+          // Off-tip
           "function( done ) { done('branch not found'); };",
-          // working-changes
+          // Working-changes
           "function( done ) { done( null, { branch: 'wip', head: 'deadbeef', changed: true }); };"
         ];
 
@@ -345,7 +355,7 @@ module.exports["compare_size"] = {
       });
       compressors.forEach(function( compressor ) {
         base["zeroes"][ file ][ compressor ] = expected["zeroes"][ file ][ compressor ] = 0;
-        expectedDeltas["zeroes"][ file ].push( "+" + cacheEntry_0_4[ file ][ compressor ] );
+        expectedDeltas["zeroes"][ file ].push( "+" + cacheEntry[ file ][ compressor ] );
       });
     });
 
@@ -356,30 +366,17 @@ module.exports["compare_size"] = {
     function next() {
       if ( harnesses.length ) {
         configureHarness( harnesses.shift() );
-        testCompare( test, base, [], true, check );
+        testCompare( test, base, [], expectedDeltas, check );
       } else {
         test.done();
       }
     }
 
     function check( lines, cache, detail ) {
-      // size comparisons
-      test.equal( detail.headers.length, labels.length + 1, "Header count" );
-      test.ok( (/ Sizes$/).test( detail.headers[ 0 ] ), "Correct placement: Sizes" );
-      labels.forEach(function( label, i ) {
-        var headerIndex = i + 1,
-            tip = base[""].tips[ label ],
-            re = " Compared to " + label.replace( /^\s/, "" ) + ( tip ? " @ " + tip : "" ) + "$";
-        test.ok( (new RegExp( re )).test( grunt.log.uncolor( detail.headers[ headerIndex ] ) ),
-            "Correct placement: " + label );
-        test.deepEqual( detail.deltas[ detail.headers[ headerIndex ] ], expectedDeltas[ label ],
-            "Deltas correct: " + label );
-      });
-
-      // branch logging
+      // Branch logging
       test.deepEqual( detail.saves, [], "Only saved to last run" );
 
-      // new cache contents
+      // New cache contents
       test.deepEqual( cache[""].tips, { branch: "tip" }, "Branch tips unchanged" );
       test.deepEqual( cache, expected, "No unexpected data" );
 
@@ -399,9 +396,9 @@ module.exports["compare_size"] = {
           )
         ),
         harnesses = [
-          // off-tip
+          // Off-tip
           "function( done ) { done('branch not found'); };",
-          // working-changes
+          // Working-changes
           "function( done ) { done( null, { branch: 'wip', head: 'deadbeef', changed: true }); };"
         ];
 
@@ -413,12 +410,12 @@ module.exports["compare_size"] = {
         expectedDeltas["branch"][ file ].push("=");
 
         base["zeroes"][ file ][ compressor ] = expected["zeroes"][ file ][ compressor ] = 0;
-        expectedDeltas["zeroes"][ file ].push( "+" + cacheEntry_0_4[ file ][ compressor ] );
+        expectedDeltas["zeroes"][ file ].push( "+" + cacheEntry[ file ][ compressor ] );
 
-        base["ones"][ file ][ compressor ] = expected["ones"][ file ][ compressor ] = cacheEntry_0_4[ file ][ compressor ] + 1;
+        base["ones"][ file ][ compressor ] = expected["ones"][ file ][ compressor ] = cacheEntry[ file ][ compressor ] + 1;
         expectedDeltas["ones"][ file ].push("-1");
 
-        base[" last run"][ file ][ compressor ] = cacheEntry_0_4[ file ][ compressor ] - index;
+        base[" last run"][ file ][ compressor ] = cacheEntry[ file ][ compressor ] - index;
         expectedDeltas[" last run"][ file ].push( index ? "+" + index : "=" );
       });
     });
@@ -431,25 +428,25 @@ module.exports["compare_size"] = {
 
     files.forEach(function( file, index ) {
       expectedDeltas[" last run"][ file ] = compressors.map(function( compressor ) {
-        // pre-0.4 caches only stored compressed data for the last file in the list
-        return !compressor || index === files.length - 1 ?
+        // Pre-0.4 caches only stored compressed data for the last file in the list
+        return !compressor || index + 1 === files.length ?
           "=" :
           "?";
       });
     });
 
     configureHarness('function( done ) { done( null, { branch: "branch", head: "tip", changed: false }); };');
-    testCompare( test, cacheEntry, [], false, function( lines, cache, detail ) {
-      // output tests
+    testCompare( test, cacheEntry_0_3, [], false, function( lines, cache, detail ) {
+      // Output tests
       test.equal( detail.headers.length, 2, "Header count" );
       test.ok( (/ Sizes$/).test( detail.headers[ 0 ] ), "Correct placement: Sizes" );
       test.ok( (/ Compared to last run$/).test( detail.headers[ 1 ] ), "Cache interpreted as last run" );
       test.deepEqual( detail.deltas[ detail.headers[ 1 ] ], expectedDeltas[" last run"], "Deltas correct: last run" );
       test.deepEqual( detail.saves, ["Saved as: branch"], "Saved to branch label" );
 
-      // cache tests
+      // Cache tests
       test.deepEqual( cache[""].tips, { branch: "tip" }, "New tip saved" );
-      test.deepEqual( cache.branch, cacheEntry_0_4, "Sizes updated for active branch" );
+      test.deepEqual( cache.branch, cacheEntry, "Sizes updated for active branch" );
       test.deepEqual( cache, augmentCache( "branch", "tip", augmentCache(" last run") ), "No unexpected data" );
 
       test.done();
@@ -461,14 +458,14 @@ module.exports["compare_size"] = {
 
     configureHarness('function( done ) { done( null, { branch: "branch", head: "tip", changed: false }); };');
     testCompare( test, undefined, [], true, function( lines, cache, detail ) {
-      // output tests
+      // Output tests
       test.equal( detail.headers.length, 1, "Header count" );
       test.ok( (/ Sizes$/).test( detail.headers[ 0 ] ), "Correct placement: Sizes" );
       test.deepEqual( detail.saves, ["Saved as: branch"], "Saved to branch label" );
 
-      // cache tests
+      // Cache tests
       test.deepEqual( cache[""].tips, { branch: "tip" }, "New tip saved" );
-      test.deepEqual( cache.branch, cacheEntry_0_4, "Sizes updated for active branch" );
+      test.deepEqual( cache.branch, cacheEntry, "Sizes updated for active branch" );
       test.deepEqual( cache, expected, "No unexpected data" );
 
       test.done();
@@ -487,31 +484,18 @@ module.exports["compare_size"] = {
       });
       compressors.forEach(function( compressor ) {
         base["zeroes"][ file ][ compressor ] = 0;
-        expectedDeltas["zeroes"][ file ].push( "+" + cacheEntry_0_4[ file ][ compressor ] );
+        expectedDeltas["zeroes"][ file ].push( "+" + cacheEntry[ file ][ compressor ] );
       });
     });
 
     configureHarness('function( done ) { done( null, { branch: "zeroes", head: "new-tip", changed: false }); };');
-    testCompare( test, base, [], true, function( lines, cache, detail ) {
-      // size comparisons
-      test.equal( detail.headers.length, labels.length + 1, "Header count" );
-      test.ok( (/ Sizes$/).test( detail.headers[ 0 ] ), "Correct placement: Sizes" );
-      labels.forEach(function( label, i ) {
-        var headerIndex = i + 1,
-            tip = base[""].tips[ label ],
-            re = " Compared to " + label.replace( /^\s/, "" ) + ( tip ? " @ " + tip : "" ) + "$";
-        test.ok( (new RegExp( re )).test( grunt.log.uncolor( detail.headers[ headerIndex ] ) ),
-            "Correct placement: " + label );
-        test.deepEqual( detail.deltas[ detail.headers[ headerIndex ] ], expectedDeltas[ label ],
-            "Deltas correct: " + label );
-      });
-
-      // branch logging
+    testCompare( test, base, [], expectedDeltas, function( lines, cache, detail ) {
+      // Branch logging
       test.deepEqual( detail.saves, ["Saved as: zeroes"], "Saved to branch label" );
 
-      // new cache contents
+      // New cache contents
       test.deepEqual( cache[""].tips, { zeroes: "new-tip" }, "New tip saved" );
-      test.deepEqual( cache.zeroes, cacheEntry_0_4, "Sizes updated for active branch" );
+      test.deepEqual( cache.zeroes, cacheEntry, "Sizes updated for active branch" );
       test.deepEqual( cache, expected, "No unexpected data" );
 
       test.done();
@@ -537,41 +521,28 @@ module.exports["compare_size"] = {
         obj[ file ] = [];
       });
       compressors.forEach(function( compressor ) {
-        base["stale"][ file ][ compressor ] = expected["stale"][ file ][ compressor ] = cacheEntry_0_4[ file ][ compressor ] + 1;
+        base["stale"][ file ][ compressor ] = expected["stale"][ file ][ compressor ] = cacheEntry[ file ][ compressor ] + 1;
         expectedDeltas["stale"][ file ].push("-1");
 
         base["zeroes"][ file ][ compressor ] = expected["zeroes"][ file ][ compressor ] = 0;
-        expectedDeltas["zeroes"][ file ].push( "+" + cacheEntry_0_4[ file ][ compressor ] );
+        expectedDeltas["zeroes"][ file ].push( "+" + cacheEntry[ file ][ compressor ] );
 
-        base["ones"][ file ][ compressor ] = cacheEntry_0_4[ file ][ compressor ] + 1;
+        base["ones"][ file ][ compressor ] = cacheEntry[ file ][ compressor ] + 1;
         expectedDeltas["ones"][ file ].push("-1");
 
-        base[" last run"][ file ][ compressor ] = cacheEntry_0_4[ file ][ compressor ] - index;
+        base[" last run"][ file ][ compressor ] = cacheEntry[ file ][ compressor ] - index;
         expectedDeltas[" last run"][ file ].push( index ? "+" + index : "=" );
       });
     });
 
     configureHarness('function( done ) { done( null, { branch: "ones", head: "new-tip", changed: false }); };');
-    testCompare( test, base, [], true, function( lines, cache, detail ) {
-      // size comparisons
-      test.equal( detail.headers.length, labels.length + 1, "Header count" );
-      test.ok( (/ Sizes$/).test( detail.headers[ 0 ] ), "Correct placement: Sizes" );
-      labels.forEach(function( label, i ) {
-        var headerIndex = i + 1,
-            tip = base[""].tips[ label ],
-            re = " Compared to " + label.replace( /^\s/, "" ) + ( tip ? " @ " + tip : "" ) + "$";
-        test.ok( (new RegExp( re )).test( grunt.log.uncolor( detail.headers[ headerIndex ] ) ),
-            "Correct placement: " + label );
-        test.deepEqual( detail.deltas[ detail.headers[ headerIndex ] ], expectedDeltas[ label ],
-            "Deltas correct: " + label );
-      });
-
-      // branch logging
+    testCompare( test, base, [], expectedDeltas, function( lines, cache, detail ) {
+      // Branch logging
       test.deepEqual( detail.saves, ["Saved as: ones"], "Saved to branch label" );
 
-      // new cache contents
+      // New cache contents
       test.deepEqual( cache[""].tips, { stale: "tip", ones: "new-tip" }, "New tip saved" );
-      test.deepEqual( cache.ones, cacheEntry_0_4, "Sizes updated for active branch" );
+      test.deepEqual( cache.ones, cacheEntry, "Sizes updated for active branch" );
       test.deepEqual( cache.stale, expected.stale, "Sizes not updated for inactive branch" );
       test.deepEqual( cache, expected, "No unexpected data" );
 
@@ -587,12 +558,12 @@ module.exports["compare_size"] = {
       var lines = result.toString().split("\n").map(function( line ) { return line.trim(); }),
           index = lines.indexOf("label");
 
-      // output tests
+      // Output tests
       test.ok( (/^branch.*@ tip/).test( lines[ index - 1 ] ), "Found branch with correct tip" );
       test.ok( index >= 0, "Found custom label" );
       test.ok( !lines[ index + 1 ], "Last run not listed" );
 
-      // cache tests
+      // Cache tests
       test.deepEqual( JSON.parse( grunt.file.read( sizecache ) ), cache, "Size cache untouched" );
 
       test.done();
@@ -600,22 +571,22 @@ module.exports["compare_size"] = {
   },
 
   "add, old-format cache": function( test ) {
-    grunt.file.write( sizecache, JSON.stringify( cacheEntry ) );
+    grunt.file.write( sizecache, JSON.stringify( cacheEntry_0_3 ) );
     testTask( test, "compare_size:add:custom", [], function( result ) {
       var lines = result.toString().split("\n").map(function( line ) { return line.trim(); }),
           cache = grunt.file.readJSON( sizecache ),
           index = lines.indexOf("Last run saved as: custom");
 
-      // output tests
+      // Output tests
       test.ok( index >= 0, "Added with correct label" );
       test.ok( !(/^Last run saved/).test( lines[ index - 1 ] ), "No antecedent adds" );
       test.ok( !lines[ index + 1 ], "No subsequent adds" );
 
-      // cache tests
+      // Cache tests
       backfillCompression( cache, test );
       test.deepEqual( cache[""].tips, {}, "No recorded branch tips" );
-      test.deepEqual( cache[" last run"], cacheEntry_0_4, "Last run unchanged" );
-      test.deepEqual( cache["custom"], cacheEntry_0_4, "Custom data stored" );
+      test.deepEqual( cache[" last run"], cacheEntry, "Last run unchanged" );
+      test.deepEqual( cache["custom"], cacheEntry, "Custom data stored" );
       test.deepEqual( cache, augmentCache( "custom", false, augmentCache(" last run") ), "No unexpected data" );
 
       test.done();
@@ -627,10 +598,10 @@ module.exports["compare_size"] = {
     testTask( test, "compare_size:add:custom", [], function() {
       test.ok( false, "Error expected" );
     }, function( err ) {
-      // output tests
+      // Output tests
       test.ok( (/No size data found/).test( err ), "Error found" );
 
-      // cache tests
+      // Cache tests
       test.ok( !fs.existsSync( sizecache ), "Cache not created" );
 
       test.done();
@@ -646,17 +617,17 @@ module.exports["compare_size"] = {
           cache = grunt.file.readJSON( sizecache ),
           index = lines.indexOf("Last run saved as: custom");
 
-      // output tests
+      // Output tests
       test.ok( index >= 0, "First label" );
       test.equal( lines[ index + 1 ], "(removed branch data) Last run saved as: replaced", "Second label" );
       test.ok( !(/^Last run saved/).test( lines[ index - 1 ] ), "No antecedent adds" );
       test.ok( !lines[ index + 2 ], "No subsequent adds" );
 
-      // cache tests
+      // Cache tests
       test.deepEqual( cache[""].tips, { branch: "tip" }, "Removed branch data" );
-      test.deepEqual( cache[" last run"], cacheEntry_0_4, "Last run unchanged" );
-      test.deepEqual( cache["custom"], cacheEntry_0_4, "Custom data stored" );
-      test.deepEqual( cache["replaced"], cacheEntry_0_4, "Replaced data stored" );
+      test.deepEqual( cache[" last run"], cacheEntry, "Last run unchanged" );
+      test.deepEqual( cache["custom"], cacheEntry, "Custom data stored" );
+      test.deepEqual( cache["replaced"], cacheEntry, "Replaced data stored" );
       test.deepEqual( cache, augmentCache( "custom", false,
         augmentCache( "branch", "tip", augmentCache( "replaced", false, augmentCache(" last run") ) ) ),
         "No unexpected data" );
@@ -674,15 +645,15 @@ module.exports["compare_size"] = {
           cache = grunt.file.readJSON( sizecache ),
           index = lines.indexOf("Removed: removed");
 
-      // output tests
+      // Output tests
       test.ok( index >= 0, "Removed label" );
       test.ok( !(/^Last run saved/).test( lines[ index - 1 ] ), "No antecedent removes" );
       test.ok( !lines[ index + 1 ], "No subsequent removes" );
 
-      // cache tests
+      // Cache tests
       test.deepEqual( cache[""].tips, { branch: "tip" }, "No recorded branch tips" );
-      test.deepEqual( cache[" last run"], cacheEntry_0_4, "Last run unchanged" );
-      test.deepEqual( cache["branch"], cacheEntry_0_4, "Branch data retained" );
+      test.deepEqual( cache[" last run"], cacheEntry, "Last run unchanged" );
+      test.deepEqual( cache["branch"], cacheEntry, "Branch data retained" );
       test.ok( !( "removed" in cache ), "Data removed" );
       test.deepEqual( cache, augmentCache( "branch", "tip", augmentCache(" last run") ),
         "No unexpected data" );
@@ -696,7 +667,7 @@ module.exports["compare_size"] = {
       augmentCache( "branch", "tip", augmentCache( "removed", "tip", augmentCache(" last run") ) ) )
     );
     testTask( test, "compare_size:empty", [], function() {
-      // cache tests
+      // Cache tests
       test.ok( !fs.existsSync( sizecache ), "Size cache removed" );
 
       test.done();
@@ -735,8 +706,8 @@ module.exports["compare_size"] = {
 
       // cache tests
       test.deepEqual( cache[""].tips, { branch: "tip" }, "Specified branches preserved" );
-      test.deepEqual( cache[" last run"], cacheEntry_0_4, "Last run unchanged" );
-      test.deepEqual( cache["branch"], cacheEntry_0_4, "Branch data retained" );
+      test.deepEqual( cache[" last run"], cacheEntry, "Last run unchanged" );
+      test.deepEqual( cache["branch"], cacheEntry, "Branch data retained" );
       test.ok( !( "removed" in cache ) && !( "foo" in cache ), "Data removed" );
       test.deepEqual( cache, augmentCache( "branch", "tip", augmentCache(" last run") ),
         "No unexpected data" );
@@ -760,5 +731,3 @@ module.exports["compare_size"] = {
     test.done();
   }
 };
-
-// ./node_modules/.bin/grunt test

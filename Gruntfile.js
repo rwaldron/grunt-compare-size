@@ -8,11 +8,10 @@ module.exports = function(grunt) {
   grunt.initConfig({
     compare_size: {
       files: [
-        "dist/source.js",
-        "dist/source.min.js"
+        "tasks/compare-size.js",
+        "test/compare-size.js"
       ],
       options: {
-        cache: "dist/.sizecache.json",
         compress: {
           gz: function( contents ) {
             return gzip.zip( contents, {} ).length;

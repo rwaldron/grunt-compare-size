@@ -182,7 +182,7 @@ module.exports = function(grunt) {
           return Math.max( label.length + 1, 7 );
         }),
 
-	// Right-align headers
+        // Right-align headers
         commonHeader = prefixes.map(function( label, i ) {
           return utils._.lpad( i === 0 && compressors ? "raw" : label, columns[ i ] - 1 );
         });
