@@ -9,17 +9,17 @@
  * Licensed under the MIT license.
  */
 
- "use strict";
+"use strict";
 
-var fs = require("fs"),
-  gzip = require("gzip-js");
+var fs = require("fs");
 
 module.exports = function(grunt) {
   // Grunt utilities & task-wide assignments
-  var file, utils, log, verbose, defaultCache, lastrun, helpers;
+  var file, utils, _, log, verbose, defaultCache, lastrun, helpers;
 
   file = grunt.file;
   utils = grunt.util;
+  _ = utils._;
   log = grunt.log;
   verbose = grunt.verbose;
   defaultCache = ".sizecache.json";
@@ -45,7 +45,7 @@ module.exports = function(grunt) {
 
     // Size cache helper
     get_cache: function( src ) {
-      var cache;
+      var cache, tmp;
 
       try {
         cache = fs.existsSync( src ) ? file.readJSON( src ) : undefined;
@@ -57,20 +57,49 @@ module.exports = function(grunt) {
       // empty
       // {}
       // { file: size [,...] }
-      // { "": { file: size [,...] } [,...] }
+      // { "": { tips: { label: SHA1, ... } }, label: { file: size, ... }, ... }
+      // { "": { version: 0.4, tips: { label: SHA1, ... } },
+      //   label: { file: { "": size, compressor: size, ... }, ... }, ... }
       if ( typeof cache !== "object" ) {
         cache = undefined;
       }
       if ( !cache || !cache[""] ) {
-        // If promoting to dictionary, assume that data are for last run
-        cache = utils._.object( [ "", lastrun ], [ { tips: {} }, cache ] );
+        // If promoting cache to dictionary, assume that data are for last run
+        cache = _.object( [ "", lastrun ], [ { version: 0, tips: {} }, cache ] );
+      }
+      if ( !cache[""].version ) {
+        cache[""].version = 0.4;
+        _.forEach( cache, function( sizes, label ) {
+          if ( !label || !sizes ) {
+            return;
+          }
+
+          // If promoting sizes to dictionary, assume that compressed size data are indicated by suffixes
+          Object.keys( sizes ).sort().forEach(function( file ) {
+            var parts = file.split("."),
+              prefix = parts.shift();
+
+            // Append compressed size data to a matching prefix
+            while ( parts.length ) {
+              if ( typeof sizes[ prefix ] === "object" ) {
+                sizes[ prefix ][ parts.join(".") ] = sizes[ file ];
+                delete sizes[ file ];
+                return;
+              }
+              prefix += "." + parts.shift();
+            }
+
+            // Store uncompressed size data
+            sizes[ file ] = { "": sizes[ file ] };
+          });
+        });
       }
 
       return cache;
     },
 
     // Files helper.
-    sizes: function( task ) {
+    sizes: function( task, compressors ) {
       var sizes = {},
           files = file.expand(
             { filter: "isFile" },
@@ -78,10 +107,12 @@ module.exports = function(grunt) {
           );
 
       files.forEach(function( src, index ) {
-        var contents = file.read( src );
-        sizes[ src ] = contents.length;
-        if ( index === ( files.length - 1 ) ) {
-          sizes[ src + ".gz" ] = gzip.zip( contents, {} ).length;
+        var contents = file.read( src ),
+          fileSizes = sizes[ src ] = { "": contents.length };
+        if ( compressors ) {
+          Object.keys( compressors ).forEach(function( compressor ) {
+            fileSizes[ compressor ] = compressors[ compressor ]( contents );
+          });
         }
       });
 
@@ -125,7 +156,7 @@ module.exports = function(grunt) {
 
   // Load test harness, if there is one
   // A hack, but we can't drop it into tasks/ because loadTasks might evaluate the harness first
-  if ( fs.existsSync("./harness") ) {
+  if ( grunt.file.expand("./harness/harness*").length ) {
     helpers.git_status = require("../harness/harness");
   }
 
@@ -133,7 +164,9 @@ module.exports = function(grunt) {
   // Derived and adapted from Corey Frang's original `sizer`
   grunt.registerMultiTask( "compare_size", "Compare working size to saved sizes", function() {
     var done = this.async(),
-      newsizes = helpers.sizes( this ),
+      compressors = ( this.options() || {} ).compress,
+      newsizes = helpers.sizes( this, compressors ),
+      files = Object.keys( newsizes ),
       sizecache = grunt.config("compare_size.options.cache") || defaultCache,
       cache = helpers.get_cache( sizecache ),
       tips = cache[""].tips,
@@ -141,60 +174,75 @@ module.exports = function(grunt) {
 
     // Obtain the current branch and continue...
     helpers.git_status( function( err, status ) {
+      var key,
+        prefixes = compressors ? [ "" ].concat( Object.keys( compressors ) ) : [ "" ],
+        availableWidth = 80,
+        columns = prefixes.map(function( label ) {
+          // Ensure width for the label and 6-character sizes, plus a padding space
+          return Math.max( label.length + 1, 7 );
+        }),
+
+        // Right-align headers
+        commonHeader = prefixes.map(function( label, i ) {
+          return utils._.lpad( i === 0 && compressors ? "raw" : label, columns[ i ] - 1 );
+        });
+
       if ( err ) {
         log.warn( err );
         status = {};
       }
 
+      // Remaining space goes to the file path
+      columns.push( Math.max( 1, availableWidth -
+          columns.reduce(function( a, b ) { return a + b; }) ) );
+
+      // Output sizes
+      log.writetableln( columns, commonHeader.concat("Sizes") );
+      files.forEach(function( key ) {
+        log.writetableln( columns,
+          prefixes.map(function( prefix, i ) {
+            return utils._.lpad( newsizes[ key ][ prefix ], columns[ i ] - 1 );
+          }).concat( key + "" )
+        );
+      });
+
+      // Comparisons
       labels.forEach(function( label, index ) {
         var key, diff, color,
             oldsizes = cache[ label ];
 
-        // Skip metadata key
-        if ( label === "" ) {
+        // Skip metadata key and empty cache entries
+        if ( label === "" || !cache[ label ] ) {
           return;
         }
 
-        // Output header line
-        log.write(
-          !oldsizes ?
-            "Sizes" :
-            "Sizes - compared to " +
-            ( label[0] === " " ?
-              label.slice( 1 ) :
-              label )
-        );
-
-        if ( label in tips ) {
-          log.write( " " + ( "@ " + tips[ label ] )[ "grey" ] );
-        }
+        // Header
         log.writeln("");
+        log.writetableln( columns, commonHeader.concat( "Compared to " +
+          ( label[0] === " " ? label.slice( 1 ) : label ) +
+          ( label in tips ? " " + ( "@ " + tips[ label ] )[ "grey" ] : "" )
+        ));
 
-        // Output size comparisons
-        for ( key in newsizes ) {
-          diff = oldsizes && oldsizes[ key ] && ( newsizes[ key ] - oldsizes[ key ] );
+        // Data
+        files.forEach(function( key ) {
+          var old = oldsizes && oldsizes[ key ];
+          log.writetableln( columns,
+            prefixes.map(function( prefix, i ) {
+              var color = "green",
+                diff = old && ( newsizes[ key ][ prefix ] - old[ prefix ] );
 
-          if ( diff < 0 ) {
-            color = "green";
-          } else if ( diff > 0 ) {
-            diff = "+" + diff;
-            color = "red";
-          } else {
-            diff = "-";
-            color = "grey";
-          }
+              if ( diff > 0 ) {
+                diff = "+" + diff;
+                color = "red";
+              } else if ( !diff ) {
+                diff = diff === 0 ? "=" : "?";
+                color = "grey";
+              }
 
-          log.writetableln([ 12, 12, 55 ], [
-            utils._.lpad( newsizes[ key ], 10 ) ,
-            utils._.lpad( "(" + diff + ")", 10 )[ color ],
-            key
-          ]);
-        }
-
-        // Output blank line for following comparisons
-        if ( labels.length > index + 1 ) {
-          log.writeln("");
-        }
+              return utils._.lpad( diff, columns[ i ] - 1 )[ color ];
+            }).concat( key + "" )
+          );
+        });
       });
 
       // Update "last run" sizes
