@@ -26,7 +26,11 @@ Add an entry to your Gruntfile.js's `initConfig` object, which will define the f
     files: [
       "library.js",
       "library.min.js"
-    ]
+    ],
+    options: {
+      // Location of stored size data
+      "cache": ".sizecache.json"
+    }
   }
 
   ...

@@ -8,7 +8,10 @@ module.exports = function(grunt) {
       files: [
         "dist/source.js",
         "dist/source.min.js"
-      ]
+      ],
+      options: {
+        cache: "dist/.sizecache.json"
+      }
     },
     nodeunit: {
       tests: [ "test/**/*.js" ]

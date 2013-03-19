@@ -16,13 +16,13 @@ var fs = require("fs"),
 
 module.exports = function(grunt) {
   // Grunt utilities & task-wide assignments
-  var file, utils, log, verbose, sizecache, lastrun, helpers;
+  var file, utils, log, verbose, defaultCache, lastrun, helpers;
 
   file = grunt.file;
   utils = grunt.util;
   log = grunt.log;
   verbose = grunt.verbose;
-  sizecache = "dist/.sizecache.json";
+  defaultCache = ".sizecache.json";
   lastrun = " last run";
   helpers = {
 
@@ -134,6 +134,7 @@ module.exports = function(grunt) {
   grunt.registerMultiTask( "compare_size", "Compare working size to saved sizes", function() {
     var done = this.async(),
       newsizes = helpers.sizes( this ),
+      sizecache = grunt.config("compare_size.options.cache") || defaultCache,
       cache = helpers.get_cache( sizecache ),
       tips = cache[""].tips,
       labels = helpers.sorted_labels( cache );
@@ -220,7 +221,8 @@ module.exports = function(grunt) {
 
   // List saved sizes
   grunt.registerTask( "compare_size:list", "List saved sizes", function() {
-    var cache = helpers.get_cache( sizecache ),
+    var sizecache = grunt.config("compare_size.options.cache") || defaultCache,
+        cache = helpers.get_cache( sizecache ),
         tips = cache[""].tips;
 
     helpers.sorted_labels( cache ).forEach(function( label ) {
@@ -238,6 +240,7 @@ module.exports = function(grunt) {
   // Add custom label
   grunt.registerTask( "compare_size:add", "Add to saved sizes", function() {
     var label,
+        sizecache = grunt.config("compare_size.options.cache") || defaultCache,
         cache = helpers.get_cache( sizecache );
 
     if ( !cache[ lastrun ] ) {
@@ -261,6 +264,7 @@ module.exports = function(grunt) {
   // Remove custom label
   grunt.registerTask( "compare_size:remove", "Remove from saved sizes", function() {
     var label,
+        sizecache = grunt.config("compare_size.options.cache") || defaultCache,
         cache = helpers.get_cache( sizecache );
 
     for ( label in this.flags ) {
@@ -274,7 +278,8 @@ module.exports = function(grunt) {
 
   // Empty size cache
   grunt.registerTask( "compare_size:prune", "Clear all saved sizes except those specified", function() {
-    var cache = helpers.get_cache( sizecache ),
+    var sizecache = grunt.config("compare_size.options.cache") || defaultCache,
+        cache = helpers.get_cache( sizecache ),
         saved = Object.keys( cache ),
         keep = Object.keys( this.flags );
 
