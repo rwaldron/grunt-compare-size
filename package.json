@@ -1,7 +1,7 @@
 {
   "name": "grunt-compare-size",
   "description": "Compare file sizes on this branch to master",
-  "version": "0.4.0-alpha.3",
+  "version": "0.4.0-rc.1",
   "homepage": "https://github.com/rwldrn/grunt-compare-size",
   "author": {
     "name": "Rick Waldron <waldron.rick@gmail.com>",
@@ -28,15 +28,15 @@
   "scripts": {
     "test": "grunt test"
   },
-  "dependencies": {
-    "grunt": "~0.4.0",
-    "gzip-js": "~0.3.1"
+  "peerDependencies": {
+    "grunt": ">= 0.4.0 < 0.5"
   },
   "devDependencies": {
-    "grunt": "~0.4.0",
-    "grunt-contrib-nodeunit": "~0.1.2",
-    "grunt-contrib-jshint": "~0.2.0",
-    "grunt-contrib-watch": "~0.3.1"
+    "grunt": "0.4.1",
+    "grunt-contrib-nodeunit": "0.1.2",
+    "grunt-contrib-jshint": "0.2.0",
+    "grunt-contrib-watch": "0.3.1",
+    "gzip-js": "0.3.1"
   },
   "keywords": []
 }
