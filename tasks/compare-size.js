@@ -176,7 +176,7 @@ module.exports = function(grunt) {
     helpers.git_status( function( err, status ) {
       var key,
         prefixes = compressors ? [ "" ].concat( Object.keys( compressors ) ) : [ "" ],
-        availableWidth = 80,
+        availableWidth = 79,
         columns = prefixes.map(function( label ) {
           // Ensure width for the label and 6-character sizes, plus a padding space
           return Math.max( label.length + 1, 7 );
