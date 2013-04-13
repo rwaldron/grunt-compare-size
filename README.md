@@ -53,6 +53,12 @@ To run a size comparison:
 grunt compare_size
 ```
 
+To get compressed comparisons of a single file:
+
+```
+grunt compare_size::<file>
+```
+
 To add a labeled measurement to the saved list of measurements:
 
 ```
