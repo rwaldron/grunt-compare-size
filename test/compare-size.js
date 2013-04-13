@@ -95,7 +95,7 @@ function testCompare( test, beforeCache, args, standardTests, success ) {
     grunt.file.write( sizecache, JSON.stringify( beforeCache ) );
   }
 
-  testTask( test, "compare_size", args, function( result ) {
+  testTask( test, [ "compare_size" ].concat( args || [] ).join(":"), [], function( result ) {
     var expected = {},
         lines = grunt.log.uncolor( result ).split("\n").map(function( line ) { return line.trim(); }),
         details = {
@@ -544,6 +544,92 @@ module.exports["compare_size"] = {
       test.deepEqual( cache[""].tips, { stale: "tip", ones: "new-tip" }, "New tip saved" );
       test.deepEqual( cache.ones, cacheEntry, "Sizes updated for active branch" );
       test.deepEqual( cache.stale, expected.stale, "Sizes not updated for inactive branch" );
+      test.deepEqual( cache, expected, "No unexpected data" );
+
+      test.done();
+    });
+  },
+
+  "single file": function( test ) {
+    var singleFile = files[0],
+        labels = [ "branch", "zeroes", "ones", " last run" ],
+        expectedDeltas = _.object( labels, labels.map(function() { return {}; }) ),
+        base = augmentCache( "branch", "tip",
+          augmentCache(" last run", false,
+            augmentCache( "ones", false, augmentCache("zeroes") )
+          )
+        ),
+        expected = augmentCache( "branch", "tip",
+          augmentCache(" last run", false,
+            augmentCache( "ones", false, augmentCache("zeroes") )
+          )
+        );
+
+    files.forEach(function( file, index ) {
+      _.values( expectedDeltas ).forEach(function( obj ) {
+        obj[ file ] = [];
+      });
+      compressors.forEach(function( compressor ) {
+        expectedDeltas["branch"][ file ].push("=");
+
+        base["zeroes"][ file ][ compressor ] = expected["zeroes"][ file ][ compressor ] = 0;
+        expectedDeltas["zeroes"][ file ].push( "+" + cacheEntry[ file ][ compressor ] );
+
+        base["ones"][ file ][ compressor ] = expected["ones"][ file ][ compressor ] = cacheEntry[ file ][ compressor ] + 1;
+        expectedDeltas["ones"][ file ].push("-1");
+
+        base[" last run"][ file ][ compressor ] = cacheEntry[ file ][ compressor ] - index;
+        expectedDeltas[" last run"][ file ].push( index ? "+" + index : "=" );
+      });
+    });
+
+    // Configure state
+    configureHarness("function( done ) { done( null, { branch: 'wip', head: 'deadbeef', changed: true }); };");
+    grunt.file.write( sizecache, JSON.stringify( base ) );
+
+    testCompare( test, base, [ "", singleFile ], false, function( lines, cache, details ) {
+      var headerIndex = indexOf( lines, /raw/ ),
+          outputCompressors = headerIndex >= 0 ?
+            [""].concat( lines[ headerIndex ].replace( "raw", "" ).match( /\S+/g ) ) :
+            [];
+
+      // Check command-line output
+      test.ok( !/\d/.test( lines[ headerIndex ] ), "Header row" );
+      test.equal( lines[ headerIndex + 1 ].slice( -singleFile.length - 1 ), " " + singleFile,
+          "Raw sizes for file" );
+      Object.keys( base ).forEach(function( label ) {
+        var testLabel = label.replace( /^ /, "" ) || "raw",
+            rlabel = new RegExp( " " + ( label ? testLabel : singleFile ) + "( .*)?" ),
+            index = indexOf( lines, rlabel ),
+            line = lines[ index ] || "",
+            lineSizes = line.match( /[-+=0-9]+/g ),
+            sizeBefore = base[ label ][ singleFile ];
+
+        test.ok( index >= 0, testLabel );
+
+        // Check raw sizes
+        if ( !label ) {
+          test.deepEqual( _.object( outputCompressors, lineSizes ),
+              cacheEntry[ singleFile ], "sizes match cache" );
+
+        // Check size comparisions
+        } else {
+          test.deepEqual( lineSizes, Object.keys( cacheEntry[ singleFile ] ).map(function( compressor ) {
+            return formatDelta( cacheEntry[ singleFile ][ compressor ] - sizeBefore[ compressor ] );
+          }), testLabel + ": deltas match cache" );
+        }
+      });
+
+      // Check branch logging
+      test.deepEqual( details.saves, [], "Only saved to last run" );
+
+      // Check cache contents
+      test.equal( typeof cache, "object", "Size cache exists" );
+      test.equal( typeof cache[""], "object", "Size cache has metadata" );
+      test.equal( cache[""].version, 0.4, "Size cache is correctly versioned" );
+      test.equal( typeof cache[""].tips, "object", "Size cache identifies branch tips" );
+      test.deepEqual( cache[" last run"], cacheEntry, "Size cache includes 'last' data" );
+      test.deepEqual( cache[""].tips, { branch: "tip" }, "Branch tips unchanged" );
       test.deepEqual( cache, expected, "No unexpected data" );
 
       test.done();

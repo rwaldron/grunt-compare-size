@@ -43,6 +43,26 @@ module.exports = function(grunt) {
       }).slice( 1 );
     },
 
+    // Label with optional commit
+    label: function( label, commit ) {
+      return label.replace( /^ /, "" ) + ( commit ? " " + ( "@ " + commit )[ "grey" ] : "" );
+    },
+
+    // Color-coded size difference
+    delta: function( delta, width ) {
+        var color = "green";
+
+        if ( delta > 0 ) {
+          delta = "+" + delta;
+          color = "red";
+        } else if ( !delta ) {
+          delta = delta === 0 ? "=" : "?";
+          color = "grey";
+        }
+
+        return utils._.lpad( delta, width )[ color ];
+    },
+
     // Size cache helper
     get_cache: function( src ) {
       var cache, tmp;
@@ -167,10 +187,17 @@ module.exports = function(grunt) {
       compressors = ( this.options() || {} ).compress,
       newsizes = helpers.sizes( this, compressors ),
       files = Object.keys( newsizes ),
+      explicitFile = Object.keys( this.flags || {} ).join(":"),
       sizecache = grunt.config("compare_size.options.cache") || defaultCache,
       cache = helpers.get_cache( sizecache ),
       tips = cache[""].tips,
       labels = helpers.sorted_labels( cache );
+
+    // Explicit comparison file flag
+    if ( explicitFile && files.indexOf( explicitFile ) < 0 ) {
+      log.error( "Unknown file: " + explicitFile );
+      return false;
+    }
 
     // Obtain the current branch and continue...
     helpers.git_status( function( err, status ) {
@@ -196,54 +223,64 @@ module.exports = function(grunt) {
       columns.push( Math.max( 1, availableWidth -
           columns.reduce(function( a, b ) { return a + b; }) ) );
 
-      // Output sizes
-      log.writetableln( columns, commonHeader.concat("Sizes") );
-      files.forEach(function( key ) {
-        log.writetableln( columns,
-          prefixes.map(function( prefix, i ) {
-            return utils._.lpad( newsizes[ key ][ prefix ], columns[ i ] - 1 );
-          }).concat( key + "" )
-        );
-      });
-
-      // Comparisons
-      labels.forEach(function( label, index ) {
-        var key, diff, color,
-            oldsizes = cache[ label ];
-
-        // Skip metadata key and empty cache entries
-        if ( label === "" || !cache[ label ] ) {
-          return;
-        }
-
+      // Compressed display for explicit-file comparison
+      if ( explicitFile ) {
         // Header
-        log.writeln("");
-        log.writetableln( columns, commonHeader.concat( "Compared to " +
-          ( label[0] === " " ? label.slice( 1 ) : label ) +
-          ( label in tips ? " " + ( "@ " + tips[ label ] )[ "grey" ] : "" )
-        ));
+        log.writetableln( columns, commonHeader.concat("") );
 
-        // Data
+        // Raw sizes
+        log.writetableln( columns, prefixes.map(function( prefix, i ) {
+          return utils._.lpad( newsizes[ explicitFile ][ prefix ], columns[ i ] - 1 );
+        }).concat( explicitFile ) );
+
+        // Comparisons
+        labels.forEach(function( label ) {
+          var old = cache[ label ] && cache[ label ][ explicitFile ];
+          log.writetableln( columns, prefixes.map(function( prefix, i ) {
+    
+            return helpers.delta( old && newsizes[ explicitFile ][ prefix ] - old[ prefix ], columns[ i ] - 1 );
+          }).concat( helpers.label(label, tips[label]) ) );
+        });
+
+      // Detailed display for all-files comparison
+      } else {
+        // Raw sizes
+        log.writetableln( columns, commonHeader.concat("Sizes") );
         files.forEach(function( key ) {
-          var old = oldsizes && oldsizes[ key ];
           log.writetableln( columns,
             prefixes.map(function( prefix, i ) {
-              var color = "green",
-                diff = old && ( newsizes[ key ][ prefix ] - old[ prefix ] );
-
-              if ( diff > 0 ) {
-                diff = "+" + diff;
-                color = "red";
-              } else if ( !diff ) {
-                diff = diff === 0 ? "=" : "?";
-                color = "grey";
-              }
-
-              return utils._.lpad( diff, columns[ i ] - 1 )[ color ];
+              return utils._.lpad( newsizes[ key ][ prefix ], columns[ i ] - 1 );
             }).concat( key + "" )
           );
         });
-      });
+
+        // Comparisons
+        labels.forEach(function( label, index ) {
+          var key, diff, color,
+              oldsizes = cache[ label ];
+
+          // Skip metadata key and empty cache entries
+          if ( label === "" || !cache[ label ] ) {
+            return;
+          }
+
+          // Header
+          log.writeln("");
+          log.writetableln( columns,
+            commonHeader.concat( "Compared to " + helpers.label( label, tips[label] ) )
+          );
+
+          // Data
+          files.forEach(function( key ) {
+            var old = oldsizes && oldsizes[ key ];
+            log.writetableln( columns,
+              prefixes.map(function( prefix, i ) {
+                return helpers.delta( old && newsizes[ key ][ prefix ] - old[ prefix ], columns[ i ] - 1 );
+              }).concat( key + "" )
+            );
+          });
+        });
+      }
 
       // Update "last run" sizes
       cache[ lastrun ] = newsizes;
