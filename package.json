@@ -1,7 +1,7 @@
 {
   "name": "grunt-compare-size",
   "description": "Compare file sizes on this branch to master",
-  "version": "0.4.0-rc.3",
+  "version": "0.4.0",
   "homepage": "https://github.com/rwldrn/grunt-compare-size",
   "author": {
     "name": "Rick Waldron <waldron.rick@gmail.com>",
@@ -38,5 +38,7 @@
     "grunt-contrib-watch": "0.3.1",
     "gzip-js": "0.3.1"
   },
-  "keywords": []
+  "keywords": [
+    "gruntplugin"
+  ]
 }
