@@ -3,7 +3,8 @@
 var grunt = require("grunt"),
     fs = require("fs"),
     gzip = require("gzip-js"),
-    _ = grunt.util._,
+    exec = require("child_process").exec,
+    _ = require("lodash"),
     files = [ "tasks/compare-size.js", "test/compare-size.js" ],
     compressors = [ "", "gz" ],
     sizecache = ".sizecache.json",
@@ -58,7 +59,7 @@ function backfillCompression( cache, test ) {
 
 function augmentCache( key, head, cache ) {
   cache = cache || { "": { version: 0.4, tips: {} } };
-  cache[ key ] = _.clone( cacheEntry, true );
+  cache[ key ] = _.cloneDeep( cacheEntry );
   if ( head ) {
     cache[""].tips[ key ] = head;
   }
@@ -66,17 +67,17 @@ function augmentCache( key, head, cache ) {
 }
 
 function testTask( test, task, args, success, failure ) {
-  grunt.util.spawn({ cmd: "grunt", args: [ task ].concat( args || [] ) }, function( err, result ) {
+  exec("grunt " + task + " " + (args || []).join(" "), {}, function( err, stdout ) {
     console.log( ("\n\nOUTPUT:")["bold"] +
-        ( "\n" + result.stdout ).replace( /\n/g, "\n    " ) );
+        ( "\n" + stdout ).replace( /\n/g, "\n    " ) );
 
     // No error; send output to success callback
     if ( !err ) {
-      success( result.stdout );
+      success( stdout );
 
     // Expected error; send output to failure callback
     } else if ( failure ) {
-      failure( result.stdout );
+      failure( stdout );
 
     // Unexpected error
     } else {
@@ -339,7 +340,7 @@ module.exports["compare_size"] = {
     }
 
     var labels = ["zeroes"],
-        expectedDeltas = _.object( labels, labels.map(function() { return {}; }) ),
+        expectedDeltas = _.zipObject( labels, labels.map(function() { return {}; }) ),
         base = augmentCache("zeroes"),
         expected = augmentCache( " last run", false, augmentCache("zeroes") ),
         harnesses = [
@@ -384,7 +385,7 @@ module.exports["compare_size"] = {
     }
 
     var labels = [ "branch", "zeroes", "ones", " last run" ],
-        expectedDeltas = _.object( labels, labels.map(function() { return {}; }) ),
+        expectedDeltas = _.zipObject( labels, labels.map(function() { return {}; }) ),
         base = augmentCache( "branch", "tip",
           augmentCache(" last run", false,
             augmentCache( "ones", false, augmentCache("zeroes") )
@@ -474,7 +475,7 @@ module.exports["compare_size"] = {
 
   "at-tip, zero cache": function( test ) {
     var labels = ["zeroes"],
-        expectedDeltas = _.object( labels, labels.map(function() { return {}; }) ),
+        expectedDeltas = _.zipObject( labels, labels.map(function() { return {}; }) ),
         base = augmentCache( "zeroes", "old-tip" ),
         expected = augmentCache( " last run", false, augmentCache( "zeroes", "new-tip" ) );
 
@@ -504,7 +505,7 @@ module.exports["compare_size"] = {
 
   "at-tip, hash cache": function( test ) {
     var labels = [ "ones", "stale", "zeroes", " last run" ],
-        expectedDeltas = _.object( labels, labels.map(function() { return {}; }) ),
+        expectedDeltas = _.zipObject( labels, labels.map(function() { return {}; }) ),
         base = augmentCache( "stale", "tip",
           augmentCache(" last run", false,
             augmentCache( "ones", "old-tip", augmentCache("zeroes") )
@@ -553,7 +554,7 @@ module.exports["compare_size"] = {
   "single file": function( test ) {
     var singleFile = files[0],
         labels = [ "branch", "zeroes", "ones", " last run" ],
-        expectedDeltas = _.object( labels, labels.map(function() { return {}; }) ),
+        expectedDeltas = _.zipObject( labels, labels.map(function() { return {}; }) ),
         base = augmentCache( "branch", "tip",
           augmentCache(" last run", false,
             augmentCache( "ones", false, augmentCache("zeroes") )
@@ -609,7 +610,7 @@ module.exports["compare_size"] = {
 
         // Check raw sizes
         if ( !label ) {
-          test.deepEqual( _.object( outputCompressors, lineSizes ),
+          test.deepEqual( _.zipObject( outputCompressors, lineSizes ),
               cacheEntry[ singleFile ], "sizes match cache" );
 
         // Check size comparisions

@@ -11,15 +11,15 @@
 
 "use strict";
 
+var _ = require("lodash");
 var fs = require("fs");
+var exec = require("child_process").exec;
 
 module.exports = function(grunt) {
   // Grunt utilities & task-wide assignments
-  var file, utils, _, log, verbose, defaultCache, lastrun, helpers;
+  var file, log, verbose, defaultCache, lastrun, helpers;
 
   file = grunt.file;
-  utils = grunt.util;
-  _ = utils._;
   log = grunt.log;
   verbose = grunt.verbose;
   defaultCache = ".sizecache.json";
@@ -60,7 +60,7 @@ module.exports = function(grunt) {
           color = "grey";
         }
 
-        return utils._.lpad( delta, width )[ color ];
+        return _.padStart( delta, width )[ color ];
     },
 
     // Size cache helper
@@ -85,7 +85,7 @@ module.exports = function(grunt) {
       }
       if ( !cache || !cache[""] ) {
         // If promoting cache to dictionary, assume that data are for last run
-        cache = _.object( [ "", lastrun ], [ { version: 0, tips: {} }, cache ] );
+        cache = _.zipObject( [ "", lastrun ], [ { version: 0, tips: {} }, cache ] );
       }
       if ( !cache[""].version ) {
         cache[""].version = 0.4;
@@ -142,13 +142,7 @@ module.exports = function(grunt) {
     // git helper.
     git_status: function( done ) {
       verbose.write( "Running `git branch` command..." );
-      utils.spawn({
-        cmd: "git",
-        args: [
-          "branch", "--no-color", "--verbose", "--no-abbrev", "--contains",
-          "HEAD"
-        ]
-      }, function( err, result ) {
+      exec("git branch --no-color --verbose --no-abbrev --contains HEAD", function( err, result ) {
         var status = {},
             matches = /^\* (.+?)\s+([0-9a-f]{8,})/im.exec( result );
 
@@ -160,12 +154,7 @@ module.exports = function(grunt) {
         } else {
           status.branch = matches[ 1 ];
           status.head = matches[ 2 ];
-          utils.spawn({
-            cmd: "git",
-            args: [
-              "diff", "--quiet", "HEAD"
-            ]
-          }, function( err, result, code ) {
+          exec("git diff --quiet HEAD", function( err, result, code ) {
             status.changed = code !== 0;
             done( null, status );
           });
@@ -211,7 +200,7 @@ module.exports = function(grunt) {
 
         // Right-align headers
         commonHeader = prefixes.map(function( label, i ) {
-          return utils._.lpad( i === 0 && compressors ? "raw" : label, columns[ i ] - 1 );
+          return _.padStart( i === 0 && compressors ? "raw" : label, columns[ i ] - 1 );
         });
 
       if ( err ) {
@@ -230,7 +219,7 @@ module.exports = function(grunt) {
 
         // Raw sizes
         log.writetableln( columns, prefixes.map(function( prefix, i ) {
-          return utils._.lpad( newsizes[ explicitFile ][ prefix ], columns[ i ] - 1 );
+          return _.padStart( newsizes[ explicitFile ][ prefix ], columns[ i ] - 1 );
         }).concat( explicitFile ) );
 
         // Comparisons
@@ -249,7 +238,7 @@ module.exports = function(grunt) {
         files.forEach(function( key ) {
           log.writetableln( columns,
             prefixes.map(function( prefix, i ) {
-              return utils._.lpad( newsizes[ key ][ prefix ], columns[ i ] - 1 );
+              return _.padStart( newsizes[ key ][ prefix ], columns[ i ] - 1 );
             }).concat( key + "" )
           );
         });
