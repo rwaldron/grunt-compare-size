@@ -142,9 +142,9 @@ module.exports = function(grunt) {
     // git helper.
     git_status: function( done ) {
       verbose.write( "Running `git branch` command..." );
-      exec("git branch --no-color --verbose --no-abbrev --contains HEAD", function( err, result ) {
+      exec("git branch --no-color --verbose --no-abbrev --contains HEAD", function( err, stdout ) {
         var status = {},
-            matches = /^\* (.+?)\s+([0-9a-f]{8,})/im.exec( result );
+            matches = /^\* (.+?)\s+([0-9a-f]{8,})/im.exec( stdout );
 
         if ( err || !matches ) {
           verbose.error();
@@ -154,8 +154,8 @@ module.exports = function(grunt) {
         } else {
           status.branch = matches[ 1 ];
           status.head = matches[ 2 ];
-          exec("git diff --quiet HEAD", function( err, result, code ) {
-            status.changed = code !== 0;
+          exec("git diff --quiet HEAD", function( err ) {
+            status.changed = !!err;
             done( null, status );
           });
         }
