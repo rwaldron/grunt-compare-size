@@ -241,6 +241,25 @@ module.exports["compare_size"] = {
   },
 
   "off-tip/working-changes, old-format cache": function( test ) {
+    var expectedDeltas = { " last run": {} },
+        harnesses = [
+          // Off-tip
+          "function( done ) { done('branch not found'); };",
+          // Working-changes
+          "function( done ) { done( null, { branch: 'wip', head: 'deadbeef', changed: true }); };"
+        ];
+
+    files.forEach(function( file, index ) {
+      expectedDeltas[" last run"][ file ] = compressors.map(function( compressor ) {
+        // Pre-0.4 caches only stored compressed data for the last file in the list
+        return !compressor || index + 1 === files.length ?
+          "=" :
+          "?";
+      });
+    });
+
+    next();
+
     function next() {
       if ( harnesses.length ) {
         configureHarness( harnesses.shift() );
@@ -264,28 +283,18 @@ module.exports["compare_size"] = {
 
       next();
     }
+  },
 
-    var expectedDeltas = { " last run": {} },
-        harnesses = [
+  "off-tip/working-changes, no cache": function( test ) {
+    var harnesses = [
           // Off-tip
           "function( done ) { done('branch not found'); };",
           // Working-changes
           "function( done ) { done( null, { branch: 'wip', head: 'deadbeef', changed: true }); };"
         ];
 
-    files.forEach(function( file, index ) {
-      expectedDeltas[" last run"][ file ] = compressors.map(function( compressor ) {
-        // Pre-0.4 caches only stored compressed data for the last file in the list
-        return !compressor || index + 1 === files.length ?
-          "=" :
-          "?";
-      });
-    });
-
     next();
-  },
 
-  "off-tip/working-changes, no cache": function( test ) {
     function next() {
       if ( harnesses.length ) {
         configureHarness( harnesses.shift() );
@@ -307,38 +316,9 @@ module.exports["compare_size"] = {
 
       next();
     }
-
-    var harnesses = [
-          // Off-tip
-          "function( done ) { done('branch not found'); };",
-          // Working-changes
-          "function( done ) { done( null, { branch: 'wip', head: 'deadbeef', changed: true }); };"
-        ];
-
-    next();
   },
 
   "off-tip/working-changes, zero cache": function( test ) {
-    function next() {
-      if ( harnesses.length ) {
-        configureHarness( harnesses.shift() );
-        testCompare( test, base, [], expectedDeltas, check );
-      } else {
-        test.done();
-      }
-    }
-
-    function check( lines, cache, detail ) {
-      // Branch logging
-      test.deepEqual( detail.saves, [], "Only saved to last run" );
-
-      // New cache contents
-      test.deepEqual( cache[""].tips, {}, "No recorded branch tips" );
-      test.deepEqual( cache, expected, "No unexpected data" );
-
-      next();
-    }
-
     var labels = ["zeroes"],
         expectedDeltas = _.zipObject( labels, labels.map(function() { return {}; }) ),
         base = augmentCache("zeroes"),
@@ -361,9 +341,7 @@ module.exports["compare_size"] = {
     });
 
     next();
-  },
 
-  "off-tip/working-changes, hash cache": function( test ) {
     function next() {
       if ( harnesses.length ) {
         configureHarness( harnesses.shift() );
@@ -378,12 +356,14 @@ module.exports["compare_size"] = {
       test.deepEqual( detail.saves, [], "Only saved to last run" );
 
       // New cache contents
-      test.deepEqual( cache[""].tips, { branch: "tip" }, "Branch tips unchanged" );
+      test.deepEqual( cache[""].tips, {}, "No recorded branch tips" );
       test.deepEqual( cache, expected, "No unexpected data" );
 
       next();
     }
+  },
 
+  "off-tip/working-changes, hash cache": function( test ) {
     var labels = [ "branch", "zeroes", "ones", " last run" ],
         expectedDeltas = _.zipObject( labels, labels.map(function() { return {}; }) ),
         base = augmentCache( "branch", "tip",
@@ -422,6 +402,26 @@ module.exports["compare_size"] = {
     });
 
     next();
+
+    function next() {
+      if ( harnesses.length ) {
+        configureHarness( harnesses.shift() );
+        testCompare( test, base, [], expectedDeltas, check );
+      } else {
+        test.done();
+      }
+    }
+
+    function check( lines, cache, detail ) {
+      // Branch logging
+      test.deepEqual( detail.saves, [], "Only saved to last run" );
+
+      // New cache contents
+      test.deepEqual( cache[""].tips, { branch: "tip" }, "Branch tips unchanged" );
+      test.deepEqual( cache, expected, "No unexpected data" );
+
+      next();
+    }
   },
 
   "at-tip, old-format cache": function( test ) {
