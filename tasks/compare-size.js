@@ -131,7 +131,7 @@ module.exports = function(grunt) {
           fileSizes = sizes[ src ] = { "": contents.length };
         if ( compressors ) {
           Object.keys( compressors ).forEach(function( compressor ) {
-            fileSizes[ compressor ] = compressors[ compressor ]( contents );
+            fileSizes[ compressor ] = compressors[ compressor ]( contents, src );
           });
         }
       });
